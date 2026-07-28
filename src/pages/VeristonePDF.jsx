@@ -765,10 +765,15 @@ const VeristonePDF = ({ data }) => {
     const finalNetTotal = (netTotal || calculatedNetTotal);
     const finalGrossTotal = (grossTotal || finalNetTotal);
 
+    // Calculate VAT values
+    const vatAmountEUR = finalNetTotal * (vatRate || 0) / 100;
+    const exchangeRate = 355.14; // 1 EUR = HUF 355.14
+    const vatAmountHUF = vatAmountEUR * exchangeRate;
+
     const formattedTotal = `€${formatCurrency(finalGrossTotal)}`;
     const sidebarTotalFontSize = getDynamicFontSize(formattedTotal, 13, 6);
     const netTotalFontSize = getDynamicFontSize(`€${formatCurrency(finalNetTotal)}`, 7, 6);
-    const vatValueFontSize = getDynamicFontSize(`€${formatCurrency(finalNetTotal * (vatRate || 0) / 100)}`, 7, 6);
+    const vatValueFontSize = getDynamicFontSize(`€${formatCurrency(vatAmountEUR)}`, 7, 6);
     const grandTotalFontSize = getDynamicFontSize(`€${formatCurrency(finalGrossTotal)}`, 14, 8);
 
     const colWidths = {
@@ -1004,11 +1009,11 @@ const VeristonePDF = ({ data }) => {
 
                             <View style={styles.totalsRow}>
                                 <View style={styles.totalsLabel}>
-                                    <Text style={styles.totalsTextLabel}>ÁTHK VAT </Text>
+                                    <Text style={styles.totalsTextLabel}>ÁTHK VAT ({vatRate || 0}%)</Text>
                                 </View>
                                 <View style={styles.totalsValue}>
                                     <Text style={[styles.totalsTextValue, { fontSize: vatValueFontSize }]}>
-                                        €{formatCurrency(finalNetTotal * (vatRate || 0) / 100)}
+                                        €{formatCurrency(vatAmountEUR)}
                                     </Text>
                                 </View>
                             </View>
@@ -1018,7 +1023,9 @@ const VeristonePDF = ({ data }) => {
                                     <Text style={styles.totalsTextLabel}>ÁTHK VAT</Text>
                                 </View>
                                 <View style={styles.totalsValue}>
-                                    <Text style={styles.totalsTextValue}>EUR</Text>
+                                    <Text style={[styles.totalsTextValue, { fontSize: vatValueFontSize }]}>
+                                        HUF {formatCurrency(vatAmountHUF)}
+                                    </Text>
                                 </View>
                             </View>
 
