@@ -1,5 +1,5 @@
 // VeristonePDF.jsx
-import { Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image, Font, Link } from '@react-pdf/renderer';
 import LogoSvg from "../assets/icons/Logo.svg";
 import MerriweatherRegular from "../assets/Fonts_veristone/Merriweather-Full-Version/Desktop Fonts/Merriweather/Merriweather-Regular.ttf";
 import MerriweatherBold from "../assets/Fonts_veristone/Merriweather-Full-Version/Desktop Fonts/Merriweather/Merriweather-Bold.ttf";
@@ -699,12 +699,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
+    footerLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
     groupIconContainer: {
         width: 14,
         height: 14,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: -26,
     },
     groupIcon: {
         width: 14,
@@ -717,7 +721,6 @@ const styles = StyleSheet.create({
         fontSize: 10,
         lineHeight: 1,
         color: '#BDFD66',
-        width: 110,
         textAlign: 'right',
     },
 });
@@ -1001,7 +1004,7 @@ const VeristonePDF = ({ data }) => {
 
                             <View style={styles.totalsRow}>
                                 <View style={styles.totalsLabel}>
-                                    <Text style={styles.totalsTextLabel}>VAT ({vatRate || 0}%)</Text>
+                                    <Text style={styles.totalsTextLabel}>ÁTHK VAT </Text>
                                 </View>
                                 <View style={styles.totalsValue}>
                                     <Text style={[styles.totalsTextValue, { fontSize: vatValueFontSize }]}>
@@ -1012,7 +1015,7 @@ const VeristonePDF = ({ data }) => {
 
                             <View style={styles.totalsRow}>
                                 <View style={styles.totalsLabel}>
-                                    <Text style={styles.totalsTextLabel}>Currency</Text>
+                                    <Text style={styles.totalsTextLabel}>ÁTHK VAT</Text>
                                 </View>
                                 <View style={styles.totalsValue}>
                                     <Text style={styles.totalsTextValue}>EUR</Text>
@@ -1062,10 +1065,14 @@ const VeristonePDF = ({ data }) => {
                         <Text style={styles.footerDesignText}>A full stack digital lab</Text>
                     </View>
                     <View style={styles.footerRight}>
-                        <View style={styles.groupIconContainer}>
-                            <Image src={Group} style={styles.groupIcon} cache={true} />
-                        </View>
-                        <Text style={styles.footerKunuText}>kunulabs.com</Text>
+                        <Link src="https://kunulabs.com">
+                            <View style={styles.footerLink}>
+                                <View style={styles.groupIconContainer}>
+                                    <Image src={Group} style={styles.groupIcon} cache={true} />
+                                </View>
+                                <Text style={styles.footerKunuText}>kunulabs.com</Text>
+                            </View>
+                        </Link>
                     </View>
                 </View>
             </Page>
