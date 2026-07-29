@@ -974,7 +974,7 @@ const VeristonePDF = ({ data }) => {
                                 </View>
                                 {displayItems.map((_, i) => (
                                     <View key={i} style={[styles.tableCell, styles.tableCellStart]}>
-                                        <Text style={[styles.tableCellText, styles.tableCellTextStart]}>{vatRate || 0}%</Text>
+                                        <Text style={[styles.tableCellText, styles.tableCellTextStart]}>ÁTHK</Text>
                                     </View>
                                 ))}
                             </View>
@@ -1009,7 +1009,7 @@ const VeristonePDF = ({ data }) => {
 
                             <View style={styles.totalsRow}>
                                 <View style={styles.totalsLabel}>
-                                    <Text style={styles.totalsTextLabel}>ÁTHK VAT ({vatRate || 0}%)</Text>
+                                    <Text style={styles.totalsTextLabel}>ÁTHK VAT</Text>
                                 </View>
                                 <View style={styles.totalsValue}>
                                     <Text style={[styles.totalsTextValue, { fontSize: vatValueFontSize }]}>
