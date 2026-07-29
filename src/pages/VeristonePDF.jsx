@@ -1,4 +1,5 @@
-// VeristonePDF.jsx
+// VeristonePDF.jsx - Fixed version without dummy data fallback
+
 import { Document, Page, Text, View, StyleSheet, Image, Font, Link } from '@react-pdf/renderer';
 import LogoSvg from "../assets/icons/Logo.svg";
 import MerriweatherRegular from "../assets/Fonts_veristone/Merriweather-Full-Version/Desktop Fonts/Merriweather/Merriweather-Regular.ttf";
@@ -13,7 +14,7 @@ import EpilogueSemiBold from "../assets/Fonts_veristone/Epilogue/Epilogue-SemiBo
 import EpilogueBold from "../assets/Fonts_veristone/Epilogue/Epilogue-Bold.ttf";
 import Group from "../assets/icons/Group_png.png";
 
-// Register Merriweather font
+// Register fonts
 Font.register({
     family: 'Merriweather',
     fonts: [
@@ -24,7 +25,6 @@ Font.register({
     ]
 });
 
-// Register Epilogue font
 Font.register({
     family: 'Epilogue',
     fonts: [
@@ -34,7 +34,7 @@ Font.register({
     ]
 });
 
-// Helper function to format currency
+// Helper functions
 const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
@@ -42,18 +42,12 @@ const formatCurrency = (amount) => {
     }).format(amount);
 };
 
-// Helper function to format date - handles multiple formats
 const formatDate = (dateString) => {
     if (!dateString || dateString === '') return '';
-
-    // If it's already in DD/MM/YYYY format, return as is
     if (dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
         return dateString;
     }
-
-    // Try to parse and format
     try {
-        // Try parsing as "May 22, 2026" format
         const date = new Date(dateString);
         if (!isNaN(date.getTime())) {
             const day = String(date.getDate()).padStart(2, '0');
@@ -62,29 +56,11 @@ const formatDate = (dateString) => {
             return `${day}/${month}/${year}`;
         }
     } catch (e) {
-        // If parsing fails, try splitting by common separators
-        const separators = ['/', '-', ' '];
-        for (const sep of separators) {
-            if (dateString.includes(sep)) {
-                const parts = dateString.split(sep);
-                if (parts.length === 3) {
-                    // Try to determine if it's DD/MM/YYYY or MM/DD/YYYY
-                    // If first part > 12, it's likely DD/MM/YYYY
-                    if (parseInt(parts[0]) > 12) {
-                        return `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[2]}`;
-                    }
-                    // Otherwise assume MM/DD/YYYY -> convert to DD/MM/YYYY
-                    return `${parts[1].padStart(2, '0')}/${parts[0].padStart(2, '0')}/${parts[2]}`;
-                }
-            }
-        }
+        return dateString;
     }
-
-    // If all fails, return the original string
     return dateString;
 };
 
-// Helper function to determine font size based on number length
 const getDynamicFontSize = (value, baseSize = 16, minSize = 6) => {
     const numStr = value.toString();
     const length = numStr.length;
@@ -96,53 +72,32 @@ const getDynamicFontSize = (value, baseSize = 16, minSize = 6) => {
     return Math.max(minSize, baseSize - reduction);
 };
 
-// Dummy data for testing
+// Default dummy data - ONLY for preview/fallback when no data is provided
 const dummyData = {
-    orderNo: 'VerI000-2026-1',
+    documentNumber: 'OTII-2026-1',
+    issueDate: '22/06/2026',
+    dueDate: '30/06/2026',
+    fulfillmentDate: '10/06/2026',
+    customerName: 'Otii gmbh',
+    customerAddress: 'Schweikhofstrasse 44, 8925\nOTII Ebertswil\nSwitzerland',
+    customerVat: 'CHE-231.415.272',
     items: [
-        {
-            sno: 1,
-            name: 'Website Administration & Coming Soon',
-            description: 'Premium quality gemstone',
-            quantity: 1,
-            price: 30.00
-        },
-        {
-            sno: 2,
-            name: 'Professional Managed Hosting (EU) May',
-            description: 'Premium quality gemstone',
-            quantity: 1,
-            price: 25.00
-        },
-        {
-            sno: 3,
-            name: 'SSL Certificate Installation',
-            description: 'Premium quality gemstone',
-            quantity: 2,
-            price: 15.00
-        },
-        {
-            sno: 4,
-            name: 'Domain Registration & Management',
-            description: 'Premium quality gemstone',
-            quantity: 1,
-            price: 12.00
-        }
+        { sno: 1, name: 'Security & Malware', quantity: 5, price: 42.00 },
+        { sno: 2, name: 'WordPress Website Rebuild', quantity: 1, price: 830.00 }
     ],
-    netTotal: 122.00,
+    netTotal: 1040.00,
     vat: 0.00,
-    grossTotal: 122.00,
-    date: '10/06/2026',
-    dueDate: '18/06/2026',
-    customerName: 'The Hamilton Family Office',
-    address: '25 Berkeley Square\nMayfair, London W1J 6QF\nUnited Kingdom',
-    attention: 'Mr. Edward Hamilton',
-    email: 'ehamilton@hamiltonfq.com',
-    vatRate: 6.5,
-    verifiedBy: '*Verified by: 75% gold Vetted on Worthserse, Austria',
-    contactPhone: '+43 664 1488753',
-    contactEmail: 'info@veristone.eu',
-    website: 'www.veristone.eu'
+    grossTotal: 1040.00,
+    vatRate: 0,
+    exchangeRate: 355.84,
+    sellerName: 'All Things Studio Kft.',
+    sellerAddress: 'Király utca 93.2.20.\n1077 Budapest\nHungary',
+    sellerVat: '32950997-1-42',
+    sellerRegistration: '01-09-451087',
+    sellerEuVat: 'HU32950997',
+    sellerIban: 'BE78967859820086',
+    sellerBank: 'Wise',
+    sellerBic: 'TRWIBEB1XXX',
 };
 
 const styles = StyleSheet.create({
@@ -309,6 +264,7 @@ const styles = StyleSheet.create({
         fontSize: 6.5,
         color: '#131313',
         lineHeight: 1.2,
+        marginBottom: 1,
     },
     line: {
         width: 25,
@@ -343,7 +299,7 @@ const styles = StyleSheet.create({
         padding: 10,
         gap: 8,
         width: 111,
-        minHeight: 180,
+        minHeight: 210,
         backgroundColor: '#131313',
         borderRadius: 8,
         overflow: 'hidden',
@@ -726,54 +682,100 @@ const styles = StyleSheet.create({
 });
 
 const VeristonePDF = ({ data }) => {
+    // Log the incoming data for debugging
+    console.log('VeristonePDF received data:', data);
+
+    // If no data is provided, use dummy data for preview
     const actualData = data || dummyData;
 
-    const {
-        orderNo = 'VerI000-2026-1',
-        items = [],
-        netTotal = 122.00,
-        vat = 0.00,
-        grossTotal = 122.00,
-        date = '',
-        dueDate = '',
-        customerName = 'The Hamilton Family Office',
-        address = '25 Berkeley Square\nMayfair, London W1J 6QF\nUnited Kingdom',
-        attention = 'Mr. Edward Hamilton',
-        email = 'ehamilton@hamiltonfq.com',
-        vatRate = 6.5,
-        verifiedBy = '*Verified by: 75% gold Vetted on Worthserse, Austria',
-        contactPhone = '+43 664 1488753',
-        contactEmail = 'info@veristone.eu',
-        website = 'www.veristone.eu',
-    } = actualData;
+    console.log('Actual data being used:', actualData);
+    console.log('Items in actual data:', actualData.items);
 
-    // Format dates - if empty string, use the formatted date from the data
-    let formattedDate = date ? formatDate(date) : '';
-    let formattedDueDate = dueDate ? formatDate(dueDate) : '';
+    // Extract fields from actual data
+    const orderNo = actualData.documentNumber || '';
+    const issueDate = actualData.issueDate || actualData.date || '';
+    const dueDate = actualData.dueDate || '';
+    const fulfillmentDate = actualData.fulfillmentDate || issueDate;
 
-    // If still empty, try using the data directly if it looks like a date
-    if (!formattedDate && date && date.includes('/')) {
-        formattedDate = date;
+    // Customer info
+    const customerName = actualData.customerName || '';
+    const customerVat = actualData.customerVat || '';
+    const customerAddress = actualData.customerAddress || '';
+
+    // Items and totals - USE ACTUAL DATA
+    const items = actualData.items || [];
+    console.log('Items array length:', items.length);
+    console.log('Items:', items);
+
+    const netTotal = actualData.netTotal || 0;
+    const vatAmount = actualData.vat || 0;
+    const grossTotal = actualData.grossTotal || 0;
+    const vatRate = actualData.vatRate || 0;
+    const exchangeRate = actualData.exchangeRate || 355.84;
+
+    // Seller info
+    const sellerName = actualData.sellerName || 'All Things Studio Kft.';
+    const sellerAddress = actualData.sellerAddress || 'Király utca 93.2.20.\n1077 Budapest\nHungary';
+    const sellerVat = actualData.sellerVat || '32950997-1-42';
+    const sellerRegistration = actualData.sellerRegistration || '01-09-451087';
+    const sellerEuVat = actualData.sellerEuVat || 'HU32950997';
+    const sellerIban = actualData.sellerIban || 'BE78967859820086';
+    const sellerBank = actualData.sellerBank || 'Wise';
+    const sellerBic = actualData.sellerBic || 'TRWIBEB1XXX';
+
+    // Format dates
+    const formattedDate = formatDate(issueDate);
+    const formattedDueDate = formatDate(dueDate);
+    const formattedFulfillmentDate = formatDate(fulfillmentDate);
+
+    // Use actual items
+    const displayItems = items && items.length > 0 ? items : [];
+
+    // If no items and no data, show a message
+    if (displayItems.length === 0 && !data) {
+        return (
+            <Document>
+                <Page style={styles.page}>
+                    <View style={styles.container}>
+                        <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginTop: 50 }}>
+                            No invoice data available
+                        </Text>
+                    </View>
+                </Page>
+            </Document>
+        );
     }
-    if (!formattedDueDate && dueDate && dueDate.includes('/')) {
-        formattedDueDate = dueDate;
+
+    // If there are no items but we have data, show a message
+    if (displayItems.length === 0 && data) {
+        return (
+            <Document>
+                <Page style={styles.page}>
+                    <View style={styles.container}>
+                        <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginTop: 50 }}>
+                            No items found in the invoice data. Items array length: {items.length}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#999', textAlign: 'center', marginTop: 10 }}>
+                            Data received: {JSON.stringify(data).substring(0, 200)}...
+                        </Text>
+                    </View>
+                </Page>
+            </Document>
+        );
     }
 
-    const displayItems = (items && items.length > 0) ? items : dummyData.items;
-
+    // Calculate totals from actual items
     const calculatedNetTotal = displayItems.reduce((sum, item) => sum + ((item.quantity || 0) * (item.price || 0)), 0);
-    const finalNetTotal = (netTotal || calculatedNetTotal);
-    const finalGrossTotal = (grossTotal || finalNetTotal);
+    const finalNetTotal = netTotal || calculatedNetTotal;
+    const finalGrossTotal = grossTotal || finalNetTotal;
+    const finalVatAmount = vatAmount || 0;
 
-    // Calculate VAT values
-    const vatAmountEUR = finalNetTotal * (vatRate || 0) / 100;
-    const exchangeRate = 355.14; // 1 EUR = HUF 355.14
-    const vatAmountHUF = vatAmountEUR * exchangeRate;
+    const vatAmountHUF = finalVatAmount * exchangeRate;
 
     const formattedTotal = `€${formatCurrency(finalGrossTotal)}`;
     const sidebarTotalFontSize = getDynamicFontSize(formattedTotal, 13, 6);
     const netTotalFontSize = getDynamicFontSize(`€${formatCurrency(finalNetTotal)}`, 7, 6);
-    const vatValueFontSize = getDynamicFontSize(`€${formatCurrency(vatAmountEUR)}`, 7, 6);
+    const vatValueFontSize = getDynamicFontSize(`€${formatCurrency(finalVatAmount)}`, 7, 6);
     const grandTotalFontSize = getDynamicFontSize(`€${formatCurrency(finalGrossTotal)}`, 14, 8);
 
     const colWidths = {
@@ -804,78 +806,83 @@ const VeristonePDF = ({ data }) => {
                     {/* Address Section */}
                     <View style={styles.addressSection}>
                         <View style={styles.cardsContainer}>
+                            {/* Sender Card - All Things Studio Kft. */}
                             <View style={styles.card}>
                                 <View style={styles.cardContent}>
                                     <View style={styles.cardHeader}>
                                         <View style={styles.iconBox}>
                                             <Image src={building} style={{ width: 22, height: 22 }} />
                                         </View>
-                                        <Text style={styles.cardTitle}>All Things Studio Kft.</Text>
+                                        <Text style={styles.cardTitle}>{sellerName}</Text>
                                     </View>
                                     <View style={styles.cardBody}>
                                         <View style={{ gap: 6 }}>
-                                            <Text style={styles.addressText}>Király utca 93. 2. 20.</Text>
-                                            <Text style={styles.addressText}>1077 Budapest</Text>
-                                            <Text style={styles.addressText}>Hungary</Text>
+                                            {sellerAddress.split('\n').map((line, i) => (
+                                                <Text key={i} style={styles.addressText}>{line}</Text>
+                                            ))}
                                         </View>
                                         <View style={styles.line} />
                                         <View style={{ gap: 6 }}>
                                             <View style={styles.infoRow}>
                                                 <Text style={styles.infoLabel}>VAT ID:</Text>
-                                                <Text style={styles.infoValue}>32950997-1-42</Text>
+                                                <Text style={styles.infoValue}>{sellerVat}</Text>
                                             </View>
                                             <View style={styles.infoRow}>
                                                 <Text style={styles.infoLabel}>CRN</Text>
-                                                <Text style={styles.infoValue}>01-09-451087</Text>
+                                                <Text style={styles.infoValue}>{sellerRegistration}</Text>
                                             </View>
                                             <View style={styles.infoRow}>
                                                 <Text style={styles.infoLabel}>EU VAT ID:</Text>
-                                                <Text style={styles.infoValue}>HU32950997</Text>
+                                                <Text style={styles.infoValue}>{sellerEuVat}</Text>
                                             </View>
                                         </View>
                                         <View style={styles.line} />
                                         <View style={{ gap: 6 }}>
                                             <View style={styles.infoRow}>
                                                 <Text style={styles.infoLabel}>IBAN:</Text>
-                                                <Text style={styles.infoValue}>BE78967859820086</Text>
+                                                <Text style={styles.infoValue}>{sellerIban}</Text>
                                             </View>
                                             <View style={styles.infoRow}>
                                                 <Text style={styles.infoLabel}>BANK:</Text>
-                                                <Text style={styles.infoValue}>Wise</Text>
+                                                <Text style={styles.infoValue}>{sellerBank}</Text>
                                             </View>
                                             <View style={styles.infoRow}>
                                                 <Text style={styles.infoLabel}>SWIFT/BIC:</Text>
-                                                <Text style={styles.infoValue}>TRWIBEB1XXX</Text>
+                                                <Text style={styles.infoValue}>{sellerBic}</Text>
                                             </View>
                                         </View>
                                     </View>
                                 </View>
                             </View>
 
+                            {/* Buyer Card - Display data as-is */}
                             <View style={styles.cardVeristone}>
                                 <View style={styles.cardContent}>
                                     <View style={styles.cardHeader}>
                                         <View style={styles.iconBox}>
                                             <Image src={building} style={{ width: 22, height: 22 }} />
                                         </View>
-                                        <Text style={styles.cardTitle}>Veristone</Text>
+                                        <Text style={styles.cardTitle}>{customerName || 'Customer'}</Text>
                                     </View>
                                     <View style={styles.cardBody}>
                                         <View style={{ gap: 6 }}>
-                                            <Text style={styles.addressText}>Villacher Str. 75b</Text>
-                                            <Text style={styles.addressText}>Velden am Wörthersee</Text>
-                                            <Text style={styles.addressText}>Austria</Text>
+                                            {customerAddress && customerAddress.split('\n').map((line, i) => (
+                                                <Text key={i} style={styles.addressText}>{line}</Text>
+                                            ))}
                                         </View>
                                         <View style={styles.line} />
-                                        <View style={styles.infoRow}>
-                                            <Text style={styles.infoLabel}>VAT ID:</Text>
-                                            <Text style={styles.infoValue}>ATU83098167</Text>
-                                        </View>
+                                        {customerVat && (
+                                            <View style={styles.infoRow}>
+                                                <Text style={styles.infoLabel}>VAT ID:</Text>
+                                                <Text style={styles.infoValue}>{customerVat}</Text>
+                                            </View>
+                                        )}
                                     </View>
                                 </View>
                             </View>
                         </View>
 
+                        {/* Sidebar */}
                         <View style={styles.sidebar}>
                             <View style={styles.sidebarContent}>
                                 <View style={styles.sidebarItem}>
@@ -885,7 +892,7 @@ const VeristonePDF = ({ data }) => {
                                 <View style={styles.sidebarLine} />
                                 <View style={styles.sidebarItem}>
                                     <Text style={styles.sidebarLabel}>Fulfillment Date</Text>
-                                    <Text style={styles.sidebarValue}>{formattedDate || 'N/A'}</Text>
+                                    <Text style={styles.sidebarValue}>{formattedFulfillmentDate || formattedDate || 'N/A'}</Text>
                                 </View>
                                 <View style={styles.sidebarLine} />
                                 <View style={styles.sidebarItem}>
@@ -1009,11 +1016,11 @@ const VeristonePDF = ({ data }) => {
 
                             <View style={styles.totalsRow}>
                                 <View style={styles.totalsLabel}>
-                                    <Text style={styles.totalsTextLabel}>ÁTHK VAT</Text>
+                                    <Text style={styles.totalsTextLabel}>ÁTHK VAT ({vatRate || 0}%)</Text>
                                 </View>
                                 <View style={styles.totalsValue}>
                                     <Text style={[styles.totalsTextValue, { fontSize: vatValueFontSize }]}>
-                                        €{formatCurrency(vatAmountEUR)}
+                                        €{formatCurrency(finalVatAmount)}
                                     </Text>
                                 </View>
                             </View>
@@ -1054,7 +1061,7 @@ const VeristonePDF = ({ data }) => {
 
                         <View style={styles.commentsLine} />
 
-                        <Text style={styles.exchangeRate}>1 EUR = HUF 355.14</Text>
+                        <Text style={styles.exchangeRate}>1 EUR = HUF {exchangeRate}</Text>
                     </View>
 
                     <Text style={styles.commentsText}>
