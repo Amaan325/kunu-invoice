@@ -1079,7 +1079,7 @@ const VeristonePDF = ({ data }) => {
                         <Text style={styles.footerDesignText}>A full stack digital lab</Text>
                     </View>
                     <View style={styles.footerRight}>
-                        <Link src="https://kunulabs.com">
+                        <Link src="https://kunulabs.com/?utm_source=invoice&utm_medium=referral&utm_campaign=footer_credit">
                             <View style={styles.footerLink}>
                                 <View style={styles.groupIconContainer}>
                                     <Image src={Group} style={styles.groupIcon} cache={true} />
