@@ -1,4 +1,4 @@
-// VeristonePDF.jsx - Fixed version without dummy data fallback
+// VeristonePDF.jsx - Fixed sidebar total display
 
 import { Document, Page, Text, View, StyleSheet, Image, Font, Link } from '@react-pdf/renderer';
 import LogoSvg from "../assets/icons/Logo.svg";
@@ -338,10 +338,10 @@ const styles = StyleSheet.create({
     },
     sidebarTotalContainer: {
         width: 87,
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
         justifyContent: 'flex-start',
-        flexWrap: 'wrap',
+        gap: 2,
     },
     sidebarTotalLabel: {
         fontFamily: 'Merriweather',
