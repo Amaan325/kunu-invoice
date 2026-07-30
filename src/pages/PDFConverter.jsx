@@ -69,12 +69,96 @@ class InvoiceParser {
         this.extractPaymentMethod();
         this.extractExchangeRate();
         this.extractComment();
+        this.extractCurrency(); // Added currency extraction
         this.extractCustomerInfo();
         this.extractItemsWithCoordinates();
         this.extractTotals();
         this.cleanCustomerData();
         console.log('Debug info:', this.debug);
         return this.data;
+    }
+
+    // NEW: Extract currency from the invoice
+    extractCurrency() {
+        console.log('Extracting currency...');
+
+        // First check for explicit currency declaration
+        const explicitMatch = this.text.match(/Currency\s*[:.]\s*([A-Z]{3})/i);
+        if (explicitMatch) {
+            const currency = explicitMatch[1].toUpperCase();
+            if (['EUR', 'USD', 'GBP', 'HUF'].includes(currency)) {
+                this.data.currency = currency;
+                console.log('Extracted currency (explicit):', currency);
+                return;
+            }
+        }
+
+        // Check for currency symbols in the text (most common indicator)
+        // Check for Euro
+        if (this.text.includes('€') || this.text.match(/EUR/i)) {
+            this.data.currency = 'EUR';
+            console.log('Extracted currency (symbol): EUR');
+            return;
+        }
+
+        // Check for Dollar
+        if (this.text.includes('$') || this.text.match(/USD/i)) {
+            this.data.currency = 'USD';
+            console.log('Extracted currency (symbol): USD');
+            return;
+        }
+
+        // Check for Pound
+        if (this.text.includes('£') || this.text.match(/GBP/i)) {
+            this.data.currency = 'GBP';
+            console.log('Extracted currency (symbol): GBP');
+            return;
+        }
+
+        // Check for Hungarian Forint
+        if (this.text.includes('Ft') || this.text.match(/HUF|forint/i)) {
+            this.data.currency = 'HUF';
+            console.log('Extracted currency (symbol): HUF');
+            return;
+        }
+
+        // Check in totals
+        const totalMatch = this.text.match(/TOTAL\s*DUE\s*[:.]?\s*([€$£])/i);
+        if (totalMatch) {
+            const symbol = totalMatch[1];
+            if (symbol === '€') this.data.currency = 'EUR';
+            else if (symbol === '$') this.data.currency = 'USD';
+            else if (symbol === '£') this.data.currency = 'GBP';
+            console.log('Extracted currency from TOTAL DUE:', this.data.currency);
+            return;
+        }
+
+        // Check in NET TOTAL
+        const netMatch = this.text.match(/NET\s*TOTAL\s*[:.]?\s*([€$£])/i);
+        if (netMatch) {
+            const symbol = netMatch[1];
+            if (symbol === '€') this.data.currency = 'EUR';
+            else if (symbol === '$') this.data.currency = 'USD';
+            else if (symbol === '£') this.data.currency = 'GBP';
+            console.log('Extracted currency from NET TOTAL:', this.data.currency);
+            return;
+        }
+
+        // Check in item prices
+        const itemMatch = this.text.match(/(?:€|\$|£|Ft)/);
+        if (itemMatch) {
+            const symbol = itemMatch[0];
+            if (symbol === '€') this.data.currency = 'EUR';
+            else if (symbol === '$') this.data.currency = 'USD';
+            else if (symbol === '£') this.data.currency = 'GBP';
+            else if (symbol === 'Ft') this.data.currency = 'HUF';
+            console.log('Extracted currency from items:', this.data.currency);
+            return;
+        }
+
+        // Default to EUR if no currency detected
+        this.data.currency = 'EUR';
+        console.log('No currency detected, defaulting to EUR');
     }
 
     extractDocumentNumber() {
@@ -111,7 +195,7 @@ class InvoiceParser {
     extractSellerInfo() {
         console.log('Extracting seller info...');
 
-        const sellerMatch = this.text.match(/SELLER\s*([\s\S]*?)(?:BUYER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€)/i);
+        const sellerMatch = this.text.match(/SELLER\s*([\s\S]*?)(?:BUYER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i);
         if (!sellerMatch) {
             console.log('No seller section found');
             return;
@@ -240,6 +324,10 @@ class InvoiceParser {
         const items = [];
         const text = this.text;
 
+        // Get currency symbol for pattern matching
+        const currencySymbol = this.getCurrencySymbol();
+        console.log('Using currency symbol for item extraction:', currencySymbol);
+
         const headerIndex = text.indexOf('DESCRIPTION QUANTITY NET UNIT PRICE NET LINE TOTAL VAT GROSS LINE TOTAL');
         let tableText = text;
 
@@ -249,7 +337,8 @@ class InvoiceParser {
             console.log('Found header, extracting items from after header');
         }
 
-        const itemPattern = /(\d+)\s+([A-Za-z][A-Za-z0-9\s&\-()]+?)\s+(\d+)\s+db\s+€([\d,\.]+)\s+€([\d,\.]+)\s+ÁTHK\s+€([\d,\.]+)/gi;
+        // Dynamic pattern based on currency
+        const itemPattern = new RegExp(`(\\d+)\\s+([A-Za-z][A-Za-z0-9\\s&\\-()]+?)\\s+(\\d+)\\s+db\\s+${currencySymbol}([\\d,\\.]+)\\s+${currencySymbol}([\\d,\\.]+)\\s+ÁTHK\\s+${currencySymbol}([\\d,\\.]+)`, 'gi');
 
         const matches = [...tableText.matchAll(itemPattern)];
         console.log(`Found ${matches.length} item matches`);
@@ -329,6 +418,18 @@ class InvoiceParser {
         return items;
     }
 
+    // Helper method to get currency symbol for pattern matching
+    getCurrencySymbol() {
+        const currency = this.data.currency || 'EUR';
+        const symbols = {
+            'EUR': '€',
+            'USD': '\\$', // Escaped for regex
+            'GBP': '£',
+            'HUF': 'Ft'
+        };
+        return symbols[currency] || '€';
+    }
+
     extractItemsWithCoordinates() {
         console.log('Extracting items with coordinates...');
 
@@ -396,10 +497,10 @@ class InvoiceParser {
 
     findCustomerSection() {
         const markers = [
-            /BUYER\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€)/i,
-            /CUSTOMER\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€)/i,
-            /BILL\s*TO\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€)/i,
-            /CLIENT\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€)/i
+            /BUYER\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i,
+            /CUSTOMER\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i,
+            /BILL\s*TO\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i,
+            /CLIENT\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i
         ];
         for (const pattern of markers) {
             const match = this.text.match(pattern);
@@ -573,10 +674,12 @@ class InvoiceParser {
     }
 
     extractTotals() {
+        const currencySymbol = this.getCurrencySymbol();
+
         const netPatterns = [
-            /NET\s*TOTAL\s*[:.]?\s*(?:€|\$)?([\d,\.]+)/i,
-            /Subtotal\s*[:.]?\s*(?:€|\$)?([\d,\.]+)/i,
-            /Sub\s*Total\s*[:.]?\s*(?:€|\$)?([\d,\.]+)/i
+            new RegExp(`NET\\s*TOTAL\\s*[:.]?\\s*(?:${currencySymbol})?([\\d,\\.]+)`, 'i'),
+            /Subtotal\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i,
+            /Sub\s*Total\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i
         ];
         const netMatch = this.findPattern(netPatterns);
         if (netMatch) {
@@ -584,19 +687,21 @@ class InvoiceParser {
         } else if (this.data.items.length > 0) {
             this.data.netTotal = this.data.items.reduce((sum, item) => sum + (item.total || item.quantity * item.price), 0);
         }
+
         const vatPatterns = [
-            /ÁTHK\s*VAT\s*[:.]?\s*(?:€|\$)?([\d,\.]+)/i,
-            /VAT\s*[:.]?\s*(?:€|\$)?([\d,\.]+)/i,
-            /Tax\s*[:.]?\s*(?:€|\$)?([\d,\.]+)/i
+            new RegExp(`ÁTHK\\s*VAT\\s*[:.]?\\s*(?:${currencySymbol})?([\\d,\\.]+)`, 'i'),
+            /VAT\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i,
+            /Tax\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i
         ];
         const vatMatch = this.findPattern(vatPatterns);
         if (vatMatch) {
             this.data.vat = parseFloat(vatMatch[1].replace(/,/g, ''));
         }
+
         const grossPatterns = [
-            /TOTAL\s*DUE\s*[:.]?\s*(?:€|\$)?([\d,\.]+)/i,
-            /GRAND\s*TOTAL\s*[:.]?\s*(?:€|\$)?([\d,\.]+)/i,
-            /Total\s*\(incl\.\s*VAT\)\s*[:.]?\s*(?:€|\$)?([\d,\.]+)/i
+            new RegExp(`TOTAL\\s*DUE\\s*[:.]?\\s*(?:${currencySymbol})?([\\d,\\.]+)`, 'i'),
+            /GRAND\s*TOTAL\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i,
+            /Total\s*\(incl\.\s*VAT\)\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i
         ];
         const grossMatch = this.findPattern(grossPatterns);
         if (grossMatch) {
@@ -927,7 +1032,8 @@ const PDFConverter = ({ onDataExtracted, onClose }) => {
                             <div><span className="text-gray-500">Document:</span> <span className="font-medium">{extractedData.documentNumber || 'N/A'}</span></div>
                             <div><span className="text-gray-500">Customer:</span> <span className="font-medium">{extractedData.customerName || 'N/A'}</span></div>
                             <div><span className="text-gray-500">Items:</span> <span className="font-medium">{extractedData.items.length}</span></div>
-                            <div><span className="text-gray-500">Net Total:</span> <span className="font-medium">€{extractedData.netTotal?.toFixed(2) || '0.00'}</span></div>
+                            <div><span className="text-gray-500">Currency:</span> <span className="font-medium">{extractedData.currency || 'EUR'}</span></div>
+                            <div><span className="text-gray-500">Net Total:</span> <span className="font-medium">{extractedData.currency === 'HUF' ? 'Ft' : '€'}{extractedData.netTotal?.toFixed(extractedData.currency === 'HUF' ? 0 : 2) || '0.00'}</span></div>
                         </div>
                         <div className="mt-3">
                             {conversionResult && (

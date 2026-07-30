@@ -1,4 +1,4 @@
-// VeristonePDF.jsx - Fixed sidebar total display
+// VeristonePDF.jsx - Fixed sidebar total display with Multi-Currency Support
 
 import { Document, Page, Text, View, StyleSheet, Image, Font, Link } from '@react-pdf/renderer';
 import LogoSvg from "../assets/icons/Logo.svg";
@@ -34,12 +34,38 @@ Font.register({
     ]
 });
 
-// Helper functions
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+
+// Helper functions with currency support
+// Currency configuration
+const CURRENCY_CONFIG = {
+    EUR: { symbol: '€', locale: 'de-DE', code: 'EUR' },
+    USD: { symbol: '$', locale: 'en-US', code: 'USD' },
+    GBP: { symbol: '£', locale: 'en-GB', code: 'GBP' },
+    HUF: { symbol: 'HUF ', locale: 'hu-HU', code: 'HUF' }, // Changed symbol to "HUF "
+};
+
+const formatCurrency = (amount, currencyCode = 'EUR') => {
+    const config = CURRENCY_CONFIG[currencyCode] || CURRENCY_CONFIG.EUR;
+
+    // Always use 2 decimal places for ALL currencies
+    const options = {
         minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(amount);
+        maximumFractionDigits: 2,
+    };
+
+    const formatted = new Intl.NumberFormat(config.locale, options).format(amount);
+
+    // For HUF, use "HUF " as the prefix
+    if (currencyCode === 'HUF') {
+        return `${config.symbol}${formatted}`; // "HUF 0.00"
+    }
+
+    return `${config.symbol}${formatted}`;
+};
+
+const getCurrencySymbol = (currencyCode = 'EUR') => {
+    const config = CURRENCY_CONFIG[currencyCode] || CURRENCY_CONFIG.EUR;
+    return config.symbol;
 };
 
 const formatDate = (dateString) => {
@@ -90,6 +116,7 @@ const dummyData = {
     grossTotal: 1040.00,
     vatRate: 0,
     exchangeRate: 355.84,
+    currency: 'EUR', // Added currency field
     sellerName: 'All Things Studio Kft.',
     sellerAddress: 'Király utca 93.2.20.\n1077 Budapest\nHungary',
     sellerVat: '32950997-1-42',
@@ -703,6 +730,10 @@ const VeristonePDF = ({ data }) => {
     const dueDate = actualData.dueDate || '';
     const fulfillmentDate = actualData.fulfillmentDate || issueDate;
 
+    // Extract currency (default to EUR)
+    const currency = actualData.currency || 'EUR';
+    const currencySymbol = getCurrencySymbol(currency);
+
     // Customer info
     const customerName = actualData.customerName || '';
     const customerVat = actualData.customerVat || '';
@@ -778,11 +809,12 @@ const VeristonePDF = ({ data }) => {
 
     const vatAmountHUF = finalVatAmount * exchangeRate;
 
-    const formattedTotal = `€${formatCurrency(finalGrossTotal)}`;
+    // Format with currency
+    const formattedTotal = formatCurrency(finalGrossTotal, currency);
     const sidebarTotalFontSize = getDynamicFontSize(formattedTotal, 13, 6);
-    const netTotalFontSize = getDynamicFontSize(`€${formatCurrency(finalNetTotal)}`, 7, 6);
-    const vatValueFontSize = getDynamicFontSize(`€${formatCurrency(finalVatAmount)}`, 7, 6);
-    const grandTotalFontSize = getDynamicFontSize(`€${formatCurrency(finalGrossTotal)}`, 14, 8);
+    const netTotalFontSize = getDynamicFontSize(formatCurrency(finalNetTotal, currency), 7, 6);
+    const vatValueFontSize = getDynamicFontSize(formatCurrency(finalVatAmount, currency), 7, 6);
+    const grandTotalFontSize = getDynamicFontSize(formatCurrency(finalGrossTotal, currency), 14, 8);
 
     const colWidths = {
         number: 35,
@@ -868,7 +900,7 @@ const VeristonePDF = ({ data }) => {
                                         <View style={styles.iconBox}>
                                             <Image src={building} style={{ width: 22, height: 22 }} />
                                         </View>
-                                        <Text style={styles.cardTitle}>{customerName || 'C.D.P DigiImpact LTD dgdgsdgsggLTD xdudio 3242 50302 LouraCyprus '}</Text>
+                                        <Text style={styles.cardTitle}>{customerName || 'Customer'}</Text>
                                     </View>
                                     <View style={styles.cardBody}>
                                         <View style={{ gap: 6 }}>
@@ -965,7 +997,9 @@ const VeristonePDF = ({ data }) => {
                                 </View>
                                 {displayItems.map((item, i) => (
                                     <View key={i} style={[styles.tableCell, styles.tableCellStart]}>
-                                        <Text style={[styles.tableCellText, styles.tableCellTextStart]}>€{formatCurrency(item.price || 0)}</Text>
+                                        <Text style={[styles.tableCellText, styles.tableCellTextStart]}>
+                                            {formatCurrency(item.price || 0, currency)}
+                                        </Text>
                                     </View>
                                 ))}
                             </View>
@@ -976,7 +1010,9 @@ const VeristonePDF = ({ data }) => {
                                 </View>
                                 {displayItems.map((item, i) => (
                                     <View key={i} style={[styles.tableCell, styles.tableCellStart]}>
-                                        <Text style={[styles.tableCellText, styles.tableCellTextStart]}>€{formatCurrency((item.quantity || 0) * (item.price || 0))}</Text>
+                                        <Text style={[styles.tableCellText, styles.tableCellTextStart]}>
+                                            {formatCurrency((item.quantity || 0) * (item.price || 0), currency)}
+                                        </Text>
                                     </View>
                                 ))}
                             </View>
@@ -1001,7 +1037,9 @@ const VeristonePDF = ({ data }) => {
                                     const grossLineTotal = lineTotal * (1 + (vatRate || 0) / 100);
                                     return (
                                         <View key={i} style={[styles.tableCell, styles.tableCellStart]}>
-                                            <Text style={[styles.tableCellText, styles.tableCellTextStart]}>€{formatCurrency(grossLineTotal)}</Text>
+                                            <Text style={[styles.tableCellText, styles.tableCellTextStart]}>
+                                                {formatCurrency(grossLineTotal, currency)}
+                                            </Text>
                                         </View>
                                     );
                                 })}
@@ -1015,7 +1053,7 @@ const VeristonePDF = ({ data }) => {
                                 </View>
                                 <View style={styles.totalsValue}>
                                     <Text style={[styles.totalsTextValue, { fontSize: netTotalFontSize }]}>
-                                        €{formatCurrency(finalNetTotal)}
+                                        {formatCurrency(finalNetTotal, currency)}
                                     </Text>
                                 </View>
                             </View>
@@ -1026,7 +1064,7 @@ const VeristonePDF = ({ data }) => {
                                 </View>
                                 <View style={styles.totalsValue}>
                                     <Text style={[styles.totalsTextValue, { fontSize: vatValueFontSize }]}>
-                                        €{formatCurrency(finalVatAmount)}
+                                        {formatCurrency(finalVatAmount, currency)}
                                     </Text>
                                 </View>
                             </View>
@@ -1037,7 +1075,7 @@ const VeristonePDF = ({ data }) => {
                                 </View>
                                 <View style={styles.totalsValue}>
                                     <Text style={[styles.totalsTextValue, { fontSize: vatValueFontSize }]}>
-                                        HUF {formatCurrency(vatAmountHUF)}
+                                        {formatCurrency(vatAmountHUF, 'HUF')}
                                     </Text>
                                 </View>
                             </View>
@@ -1048,7 +1086,7 @@ const VeristonePDF = ({ data }) => {
                                 </View>
                                 <View style={styles.totalsGrandValue}>
                                     <Text style={[styles.totalsTextGrandValue, { fontSize: grandTotalFontSize }]}>
-                                        €{formatCurrency(finalGrossTotal)}
+                                        {formatCurrency(finalGrossTotal, currency)}
                                     </Text>
                                 </View>
                             </View>
