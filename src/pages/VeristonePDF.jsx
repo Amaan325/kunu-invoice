@@ -922,7 +922,7 @@ const VeristonePDF = ({ data }) => {
                         <View style={styles.table}>
                             <View style={{ ...styles.tableCol, width: colWidths.number }}>
                                 <View style={[styles.tableHead, styles.tableHeadFirst]}>
-                                    <Text style={styles.tableHeadText}>#</Text>
+                                    {/* <Text style={styles.tableHeadText}>#</Text> */}
                                 </View>
                                 {displayItems.map((_, i) => (
                                     <View key={i} style={styles.tableCell}>
