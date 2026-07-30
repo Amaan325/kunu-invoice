@@ -411,10 +411,11 @@ const styles = StyleSheet.create({
         marginRight: 3,
     },
     sidebarTotalValue: {
-        fontFamily: 'Merriweather',
+        fontFamily: 'Epilogue',
         fontWeight: 700,
         color: '#BDFD66',
         lineHeight: 1,
+        marginTop: 6
     },
     sidebarLine: {
         width: 87,

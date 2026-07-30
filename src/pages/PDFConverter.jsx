@@ -69,7 +69,7 @@ class InvoiceParser {
         this.extractPaymentMethod();
         this.extractExchangeRate();
         this.extractComment();
-        this.extractCurrency(); // Added currency extraction
+        this.extractCurrency();
         this.extractCustomerInfo();
         this.extractItemsWithCoordinates();
         this.extractTotals();
@@ -78,11 +78,9 @@ class InvoiceParser {
         return this.data;
     }
 
-    // Extract currency from the invoice
     extractCurrency() {
         console.log('Extracting currency...');
 
-        // First check for explicit currency declaration
         const explicitMatch = this.text.match(/Currency\s*[:.]\s*([A-Z]{3})/i);
         if (explicitMatch) {
             const currency = explicitMatch[1].toUpperCase();
@@ -93,14 +91,12 @@ class InvoiceParser {
             }
         }
 
-        // Clean the text to remove exchange rate references before currency detection
         const cleanedText = this.text
             .replace(/Exchange\s*rate:[^\n]*/gi, '')
             .replace(/Gross\s*amount:[^\n]*/gi, '')
             .replace(/1\s*[A-Z]{3}\s*=\s*HUF[^\n]*/gi, '')
             .replace(/HUF\s*[\d,\.]+/gi, '');
 
-        // Check TOTAL DUE first - this is the authoritative currency
         const totalDueMatch = cleanedText.match(/TOTAL\s*DUE\s*[:.]?\s*([€$£])|TOTAL\s*DUE\s*[:.]?\s*(EUR|USD|GBP|HUF)/i);
         if (totalDueMatch) {
             const match = totalDueMatch[1] || totalDueMatch[2];
@@ -126,7 +122,6 @@ class InvoiceParser {
             }
         }
 
-        // Check for currency symbols in the cleaned text
         if (cleanedText.includes('€')) {
             this.data.currency = 'EUR';
             console.log('Extracted currency (symbol): EUR');
@@ -143,7 +138,6 @@ class InvoiceParser {
             return;
         }
 
-        // Check for currency codes in the cleaned text (but exclude HUF unless it's clearly the primary)
         if (cleanedText.match(/GBP/i) && !cleanedText.match(/EUR/i) && !cleanedText.match(/USD/i)) {
             this.data.currency = 'GBP';
             console.log('Extracted currency (code): GBP');
@@ -160,7 +154,6 @@ class InvoiceParser {
             return;
         }
 
-        // Check for HUF only if no other currency is found (and only if it appears in a currency context)
         if (cleanedText.match(/HUF|forint/i) &&
             !cleanedText.match(/EUR|USD|GBP|€|\$|£/i)) {
             this.data.currency = 'HUF';
@@ -168,7 +161,6 @@ class InvoiceParser {
             return;
         }
 
-        // Default to EUR if no currency detected
         this.data.currency = 'EUR';
         console.log('No currency detected, defaulting to EUR');
     }
@@ -336,11 +328,9 @@ class InvoiceParser {
         const items = [];
         const text = this.text;
 
-        // Get currency pattern for regex matching
         const currencyPattern = this.getCurrencySymbol();
         console.log('Using currency pattern for item extraction:', currencyPattern);
 
-        // Find the table header
         const headerIndex = text.indexOf('DESCRIPTION QUANTITY NET UNIT PRICE NET LINE TOTAL VAT GROSS LINE TOTAL');
         let tableText = text;
 
@@ -350,19 +340,15 @@ class InvoiceParser {
             console.log('Found header, extracting items from after header');
         }
 
-        // Look for the item pattern directly in the table text
-        // This pattern matches: number, name, quantity, price, net total, VAT label, gross total
         const itemRegex = new RegExp(
             `(\\d+)\\s+([A-Za-z][A-Za-z0-9\\s&\\-()]+?)\\s+(\\d+)\\s+db\\s+${currencyPattern}\\s*([\\d,\\.]+)\\s+${currencyPattern}\\s*([\\d,\\.]+)\\s+ÁTHK\\s+${currencyPattern}\\s*([\\d,\\.]+)`,
             'i'
         );
 
-        // Try to find all matches
         let match;
         let searchText = tableText;
         let foundItems = 0;
 
-        // Use a while loop to find all matches (using exec with lastIndex)
         const regex = new RegExp(itemRegex.source, 'gi');
 
         while ((match = regex.exec(searchText)) !== null) {
@@ -373,7 +359,6 @@ class InvoiceParser {
                 const price = parseFloat(match[4].replace(/,/g, ''));
                 const netTotal = parseFloat(match[5].replace(/,/g, ''));
 
-                // Validate the item
                 const isValidName = name &&
                     !name.match(/^DESCRIPTION|^QUANTITY|^NET\s*UNIT|^NET\s*LINE|^VAT|^GROSS|^TOTAL|^SUBTOTAL|^ITEM|^NO\./i) &&
                     !name.includes('DESCRIPTION') &&
@@ -401,7 +386,6 @@ class InvoiceParser {
             }
         }
 
-        // If no items found with the full pattern, try a simpler pattern
         if (items.length === 0) {
             console.log('Trying simpler pattern...');
             const simpleRegex = new RegExp(
@@ -444,7 +428,7 @@ class InvoiceParser {
         console.log(`Total found ${items.length} items:`, items);
         return items;
     }
-    // Helper method to get currency pattern for regex matching (both symbol and code)
+
     getCurrencySymbol() {
         const currency = this.data.currency || 'EUR';
         const patterns = {
@@ -475,28 +459,21 @@ class InvoiceParser {
     extractCustomerInfo() {
         console.log('Extracting customer info...');
 
-        // Use coordinates to find customer info (more reliable)
         if (this.pageData && this.pageData.length > 0) {
             const page = this.pageData[0];
             const pageItems = page.items;
             const pageWidth = page.width;
 
-            // Find items on the right side (customer section)
-            // The customer section is typically on the right side of the invoice
             const customerItems = pageItems.filter(item => {
-                // Customer info is usually on the right side (x > pageWidth * 0.45)
-                // and below the seller section (y > 50)
                 return item.x > pageWidth * 0.45 && item.y > 50 && item.y < 250;
             });
 
             console.log('Customer items found:', customerItems.map(i => ({ text: i.text, x: i.x, y: i.y })));
 
             if (customerItems.length > 0) {
-                // Group by Y coordinate to get lines
                 const lines = this.groupByY(customerItems);
                 console.log('Customer lines from coordinates:', lines);
 
-                // Parse customer info from lines
                 let companyName = '';
                 let addressLines = [];
                 let vatNumber = '';
@@ -504,11 +481,9 @@ class InvoiceParser {
                 for (const line of lines) {
                     const trimmed = line.trim();
 
-                    // Look for VAT ID
                     const vatMatch = trimmed.match(/VAT\s*ID:?\s*([A-Za-z0-9\-\.]+)/i);
                     if (vatMatch) {
                         vatNumber = vatMatch[1].trim();
-                        // Remove VAT from the line for further processing
                         const cleanedLine = trimmed.replace(/VAT\s*ID:?\s*[A-Za-z0-9\-\.]+/i, '').trim();
                         if (cleanedLine) {
                             addressLines.push(cleanedLine);
@@ -516,28 +491,22 @@ class InvoiceParser {
                         continue;
                     }
 
-                    // Skip empty lines or lines with just "BUYER"
                     if (!trimmed || trimmed === 'BUYER') continue;
 
-                    // Skip lines that are clearly not customer info
                     if (trimmed.match(/SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|DESCRIPTION|QUANTITY|NET UNIT|GROSS LINE|ÁTHK|COMMENT|Invoice|Page/i)) {
                         continue;
                     }
 
-                    // If we haven't found a company name yet and this looks like a company name
                     if (!companyName && trimmed.match(/[A-Za-z]+\s+[A-Za-z]+/) && trimmed.length > 3) {
-                        // Check if it's a company (has Ltd, GmbH, AG, etc. or is not a number)
                         if (trimmed.match(/Ltd|Limited|GmbH|AG|Kft|LLC|Inc|Corp|S\.A\.|SRL/i) || !trimmed.match(/^\d+/)) {
                             companyName = trimmed;
                             continue;
                         }
                     }
 
-                    // If we have a company name, remaining lines are address
                     if (companyName) {
                         addressLines.push(trimmed);
                     } else {
-                        // Try to detect if this could be the company name
                         if (!trimmed.match(/^\d+/) && trimmed.length > 3) {
                             companyName = trimmed;
                         } else {
@@ -546,7 +515,6 @@ class InvoiceParser {
                     }
                 }
 
-                // Set the customer data
                 if (companyName) {
                     this.data.customerName = companyName;
                 }
@@ -567,7 +535,6 @@ class InvoiceParser {
             }
         }
 
-        // Fallback: If coordinates didn't work, try the text-based approach
         console.log('Falling back to text-based customer extraction...');
         let customerSection = this.findCustomerSection();
         if (customerSection) {
@@ -579,7 +546,6 @@ class InvoiceParser {
         this.cleanCustomerData();
     }
 
-    // Keep findCustomerSection as a fallback
     findCustomerSection() {
         const markers = [
             /BUYER\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i,
@@ -606,7 +572,6 @@ class InvoiceParser {
             section = section.replace(/VAT\s*ID:?\s*[A-Za-z0-9\-\.]+/i, '').trim();
         }
 
-        // Split into lines and try to identify company name and address
         const lines = section.split('\n').filter(line => line.trim());
         let nameFound = false;
         let addressLines = [];
@@ -615,14 +580,11 @@ class InvoiceParser {
             const trimmed = line.trim();
             if (!trimmed) continue;
 
-            // Skip lines that are clearly not customer info
             if (trimmed.match(/SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|DESCRIPTION|QUANTITY|NET UNIT|GROSS LINE|ÁTHK|COMMENT|Invoice|Page/i)) {
                 continue;
             }
 
-            // If no name found yet, try to find company name
             if (!nameFound) {
-                // Look for company indicators
                 if (trimmed.match(/Ltd|Limited|GmbH|AG|Kft|LLC|Inc|Corp|S\.A\.|SRL/i) ||
                     (trimmed.match(/[A-Za-z]+\s+[A-Za-z]+/) && !trimmed.match(/^\d+/))) {
                     this.data.customerName = trimmed;
@@ -631,7 +593,6 @@ class InvoiceParser {
                 }
             }
 
-            // If we have a name, remaining lines are address
             if (nameFound) {
                 addressLines.push(trimmed);
             }
@@ -641,7 +602,6 @@ class InvoiceParser {
             this.data.customerAddress = addressLines.join('\n');
         }
 
-        // If no name found, try to extract from the first line
         if (!nameFound && lines.length > 0) {
             const firstLine = lines[0].trim();
             if (firstLine && !firstLine.match(/VAT|ID|:/i)) {
@@ -659,7 +619,6 @@ class InvoiceParser {
         });
     }
 
-    // Keep identifyCustomerFromText as a fallback
     identifyCustomerFromText() {
         console.log('Identifying customer from text (fallback)...');
         const lines = this.lines;
@@ -729,184 +688,6 @@ class InvoiceParser {
         console.log('Cleaned customerAddress:', this.data.customerAddress);
     }
 
-    findCustomerSection() {
-        const markers = [
-            /BUYER\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i,
-            /CUSTOMER\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i,
-            /BILL\s*TO\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i,
-            /CLIENT\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i
-        ];
-        for (const pattern of markers) {
-            const match = this.text.match(pattern);
-            if (match) {
-                const section = match[1].trim();
-                console.log('Found customer section:', section);
-                return section;
-            }
-        }
-        return null;
-    }
-
-    parseCustomerSection(section) {
-        console.log('Parsing customer section...');
-        let vatMatch = section.match(/VAT\s*ID:?\s*([A-Za-z0-9\-\.]+)/i);
-        if (vatMatch) {
-            this.data.customerVat = vatMatch[1].trim();
-            section = section.replace(/VAT\s*ID:?\s*[A-Za-z0-9\-\.]+/i, '').trim();
-        }
-
-        const patterns = [
-            /^([A-Za-z\s]+(?:GmbH|AG|Ltd|LLC|Inc|Corp|S\.A\.|SRL|Kft\.))\s+(.+)$/i,
-            /^([A-Za-z]+\s+[A-Za-z]+)\s+(.+)$/i,
-            /^([A-Za-z\s]+(?:GmbH|AG|Ltd|LLC|Inc|Corp|S\.A\.|SRL|Kft\.)),\s*(.+)$/i,
-        ];
-
-        let nameFound = false;
-        let addressPart = '';
-
-        for (const pattern of patterns) {
-            const match = section.match(pattern);
-            if (match) {
-                this.data.customerName = match[1].trim();
-                addressPart = match[2].trim();
-                nameFound = true;
-                console.log('Found customer name:', this.data.customerName);
-                console.log('Address part:', addressPart);
-                break;
-            }
-        }
-
-        if (!nameFound) {
-            let parts = section.split(/VAT/i);
-            if (parts.length > 0) {
-                const cleanPart = parts[0].trim();
-                let nameMatch = cleanPart.match(/^([A-Za-z\s]+(?:GmbH|AG|Ltd|LLC|Inc|Corp|S\.A\.|SRL|Kft\.))/i);
-                if (!nameMatch) {
-                    nameMatch = cleanPart.match(/^([A-Za-z]+\s+[A-Za-z]+)/);
-                }
-                if (nameMatch) {
-                    this.data.customerName = nameMatch[1].trim();
-                    addressPart = cleanPart.replace(nameMatch[1], '').trim();
-                    nameFound = true;
-                    console.log('Found customer name (fallback):', this.data.customerName);
-                    console.log('Address part (fallback):', addressPart);
-                }
-            }
-        }
-
-        if (addressPart) {
-            addressPart = addressPart.replace(/VAT\s*ID:?\s*[A-Za-z0-9\-\.]+/i, '').trim();
-            let formattedAddress = '';
-            const parts = addressPart.split(',').map(p => p.trim()).filter(p => p);
-
-            if (parts.length >= 3) {
-                const street = parts[0];
-                const postalCity = parts[1];
-                const country = parts[2];
-                const postalMatch = postalCity.match(/^(\d+)\s+(.+)$/);
-                if (postalMatch) {
-                    const postalCode = postalMatch[1];
-                    const cityName = postalMatch[2];
-                    formattedAddress = `${street}, ${postalCode}\n${cityName}\n${country}`;
-                } else {
-                    formattedAddress = `${street}\n${postalCity}\n${country}`;
-                }
-            } else if (parts.length === 2) {
-                const street = parts[0];
-                const rest = parts[1];
-
-                const postalMatch = rest.match(/^([A-Za-z]?\d[\dA-Za-z\-]*)\s+(.+)$/);
-
-                if (postalMatch) {
-                    const postalCode = postalMatch[1];
-                    const cityCountry = postalMatch[2].trim();
-
-                    const countries = [
-                        "Portugal", "Switzerland", "Hungary", "Germany", "Austria",
-                        "Belgium", "France", "Italy", "Spain", "Netherlands",
-                        "Luxembourg", "Poland", "Romania", "Croatia", "Slovakia",
-                        "Slovenia", "Czech Republic", "United Kingdom", "Ireland",
-                        "Denmark", "Sweden", "Norway", "Finland", "Estonia",
-                        "Latvia", "Lithuania", "Bosnia and Herzegovina", "Serbia",
-                        "Montenegro", "North Macedonia", "Albania", "Bulgaria",
-                        "Greece", "Cyprus", "Malta", "Turkey", "United States",
-                        "Canada", "Australia", "New Zealand", "South Africa",
-                        "United Arab Emirates", "Saudi Arabia", "India", "China",
-                        "Japan", "South Korea", "Singapore", "Malaysia", "Thailand"
-                    ];
-
-                    const sortedCountries = countries.sort((a, b) => b.length - a.length);
-
-                    let country = "";
-                    let city = cityCountry;
-
-                    for (const c of sortedCountries) {
-                        if (cityCountry.toLowerCase().endsWith(c.toLowerCase())) {
-                            country = c;
-                            city = cityCountry.substring(0, cityCountry.length - c.length).trim();
-                            break;
-                        }
-                    }
-
-                    if (country) {
-                        formattedAddress = `${street},\n${postalCode} ${city}\n${country}`;
-                    } else {
-                        formattedAddress = `${street}\n${postalCode} ${cityCountry}`;
-                    }
-                } else {
-                    formattedAddress = `${street}\n${rest}`;
-                }
-            } else {
-                formattedAddress = addressPart;
-            }
-
-            this.data.customerAddress = formattedAddress;
-            console.log('Formatted customer address:', this.data.customerAddress);
-        }
-
-        if (!this.data.customerAddress && !nameFound) {
-            const lines = section.split('\n').filter(line => line.trim());
-            if (lines.length > 0) {
-                this.data.customerName = lines[0].trim();
-                if (lines.length > 1) {
-                    this.data.customerAddress = lines.slice(1).join('\n');
-                }
-            }
-        }
-    }
-
-    identifyCustomerFromText() {
-        console.log('Identifying customer from text...');
-        const lines = this.lines;
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (line.match(/(?:GmbH|AG|Ltd|LLC|Inc|Corp|S\.A\.|SRL|Kft\.)/i) &&
-                !line.match(/All Things Studio|Király|32950997|HU32950997/)) {
-                this.data.customerName = line;
-                console.log('Identified customer name:', this.data.customerName);
-                const addressLines = [];
-                for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
-                    const nextLine = lines[j].trim();
-                    if (nextLine.match(/VAT|EMAIL|PHONE|TEL|FAX|IBAN|SWIFT|BIC/i)) {
-                        const vatMatch = nextLine.match(/VAT\s*[:.]?\s*([A-Za-z0-9\-\.]+)/i);
-                        if (vatMatch) {
-                            this.data.customerVat = vatMatch[1].trim();
-                        }
-                        break;
-                    }
-                    if (nextLine && !nextLine.match(/All Things Studio|Király|32950997|HU32950997/)) {
-                        addressLines.push(nextLine);
-                    }
-                }
-                if (addressLines.length > 0) {
-                    this.data.customerAddress = addressLines.join('\n');
-                    console.log('Identified customer address:', this.data.customerAddress);
-                }
-                break;
-            }
-        }
-    }
-
     extractTotals() {
         const currencyPattern = this.getCurrencySymbol();
 
@@ -947,6 +728,7 @@ class InvoiceParser {
             this.data.vatRate = (this.data.vat / this.data.netTotal) * 100;
         }
     }
+
     findPattern(patterns, text = this.text) {
         for (const pattern of patterns) {
             const match = text.match(pattern);
@@ -1089,6 +871,17 @@ const PDFConverter = ({ onDataExtracted, onClose }) => {
     const [parsingError, setParsingError] = useState(null);
     const fileInputRef = useRef(null);
 
+    // Helper function to get currency symbol for preview
+    const getCurrencySymbol = (currencyCode) => {
+        const symbols = {
+            'EUR': '€',
+            'USD': '$',
+            'GBP': '£',
+            'HUF': 'Ft'
+        };
+        return symbols[currencyCode] || '€';
+    };
+
     const handleFileUpload = async (event) => {
         const file = event.target.files[0];
         if (!file) return;
@@ -1179,15 +972,11 @@ const PDFConverter = ({ onDataExtracted, onClose }) => {
         }
     };
 
-    // In PDFConverter.jsx, find and replace the downloadConvertedPDF function
-
     const downloadConvertedPDF = () => {
         if (conversionResult) {
             const link = document.createElement('a');
             link.href = conversionResult;
-            // Get the original file name without extension
             const originalFileName = selectedFile?.name ? selectedFile.name.replace(/\.[^/.]+$/, '') : 'converted';
-            // Use lowercase "kunu_labs_" prefix
             link.download = `kunu_labs_${originalFileName}.pdf`;
             document.body.appendChild(link);
             link.click();
@@ -1266,7 +1055,13 @@ const PDFConverter = ({ onDataExtracted, onClose }) => {
                             <div><span className="text-gray-500">Customer:</span> <span className="font-medium">{extractedData.customerName || 'N/A'}</span></div>
                             <div><span className="text-gray-500">Items:</span> <span className="font-medium">{extractedData.items.length}</span></div>
                             <div><span className="text-gray-500">Currency:</span> <span className="font-medium">{extractedData.currency || 'EUR'}</span></div>
-                            <div><span className="text-gray-500">Net Total:</span> <span className="font-medium">{extractedData.currency === 'HUF' ? 'Ft' : '€'}{extractedData.netTotal?.toFixed(extractedData.currency === 'HUF' ? 0 : 2) || '0.00'}</span></div>
+                            <div>
+                                <span className="text-gray-500">Net Total:</span>
+                                <span className="font-medium">
+                                    {getCurrencySymbol(extractedData.currency || 'EUR')}
+                                    {extractedData.netTotal?.toFixed(extractedData.currency === 'HUF' ? 0 : 2) || '0.00'}
+                                </span>
+                            </div>
                         </div>
                         <div className="mt-3">
                             {conversionResult && (
