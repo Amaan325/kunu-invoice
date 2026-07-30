@@ -841,11 +841,16 @@ const PDFConverter = ({ onDataExtracted, onClose }) => {
         }
     };
 
+    // In PDFConverter.jsx, find and replace the downloadConvertedPDF function
+
     const downloadConvertedPDF = () => {
         if (conversionResult) {
             const link = document.createElement('a');
             link.href = conversionResult;
-            link.download = `Kunu_Invoice_${extractedData?.documentNumber || 'converted'}.pdf`;
+            // Get the original file name without extension
+            const originalFileName = selectedFile?.name ? selectedFile.name.replace(/\.[^/.]+$/, '') : 'converted';
+            // Use lowercase "kunu_labs_" prefix
+            link.download = `kunu_labs_${originalFileName}.pdf`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
