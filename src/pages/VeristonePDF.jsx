@@ -1016,7 +1016,7 @@ const VeristonePDF = ({ data }) => {
 
                             <View style={styles.totalsRow}>
                                 <View style={styles.totalsLabel}>
-                                    <Text style={styles.totalsTextLabel}>ÁTHK VAT ({vatRate || 0}%)</Text>
+                                    <Text style={styles.totalsTextLabel}>ÁTHK VAT</Text>
                                 </View>
                                 <View style={styles.totalsValue}>
                                     <Text style={[styles.totalsTextValue, { fontSize: vatValueFontSize }]}>
