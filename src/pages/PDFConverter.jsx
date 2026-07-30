@@ -78,7 +78,7 @@ class InvoiceParser {
         return this.data;
     }
 
-    // NEW: Extract currency from the invoice
+    // Extract currency from the invoice
     extractCurrency() {
         console.log('Extracting currency...');
 
@@ -93,66 +93,78 @@ class InvoiceParser {
             }
         }
 
-        // Check for currency symbols in the text (most common indicator)
-        // Check for Euro
-        if (this.text.includes('€') || this.text.match(/EUR/i)) {
+        // Clean the text to remove exchange rate references before currency detection
+        const cleanedText = this.text
+            .replace(/Exchange\s*rate:[^\n]*/gi, '')
+            .replace(/Gross\s*amount:[^\n]*/gi, '')
+            .replace(/1\s*[A-Z]{3}\s*=\s*HUF[^\n]*/gi, '')
+            .replace(/HUF\s*[\d,\.]+/gi, '');
+
+        // Check TOTAL DUE first - this is the authoritative currency
+        const totalDueMatch = cleanedText.match(/TOTAL\s*DUE\s*[:.]?\s*([€$£])|TOTAL\s*DUE\s*[:.]?\s*(EUR|USD|GBP|HUF)/i);
+        if (totalDueMatch) {
+            const match = totalDueMatch[1] || totalDueMatch[2];
+            if (match) {
+                const cur = match.toUpperCase();
+                if (cur === '€' || cur === 'EUR') {
+                    this.data.currency = 'EUR';
+                    console.log('Extracted currency from TOTAL DUE: EUR');
+                    return;
+                } else if (cur === '$' || cur === 'USD') {
+                    this.data.currency = 'USD';
+                    console.log('Extracted currency from TOTAL DUE: USD');
+                    return;
+                } else if (cur === '£' || cur === 'GBP') {
+                    this.data.currency = 'GBP';
+                    console.log('Extracted currency from TOTAL DUE: GBP');
+                    return;
+                } else if (cur === 'HUF') {
+                    this.data.currency = 'HUF';
+                    console.log('Extracted currency from TOTAL DUE: HUF');
+                    return;
+                }
+            }
+        }
+
+        // Check for currency symbols in the cleaned text
+        if (cleanedText.includes('€')) {
             this.data.currency = 'EUR';
             console.log('Extracted currency (symbol): EUR');
             return;
         }
-
-        // Check for Dollar
-        if (this.text.includes('$') || this.text.match(/USD/i)) {
+        if (cleanedText.includes('$')) {
             this.data.currency = 'USD';
             console.log('Extracted currency (symbol): USD');
             return;
         }
-
-        // Check for Pound
-        if (this.text.includes('£') || this.text.match(/GBP/i)) {
+        if (cleanedText.includes('£')) {
             this.data.currency = 'GBP';
             console.log('Extracted currency (symbol): GBP');
             return;
         }
 
-        // Check for Hungarian Forint
-        if (this.text.includes('Ft') || this.text.match(/HUF|forint/i)) {
+        // Check for currency codes in the cleaned text (but exclude HUF unless it's clearly the primary)
+        if (cleanedText.match(/GBP/i) && !cleanedText.match(/EUR/i) && !cleanedText.match(/USD/i)) {
+            this.data.currency = 'GBP';
+            console.log('Extracted currency (code): GBP');
+            return;
+        }
+        if (cleanedText.match(/USD/i) && !cleanedText.match(/EUR/i) && !cleanedText.match(/GBP/i)) {
+            this.data.currency = 'USD';
+            console.log('Extracted currency (code): USD');
+            return;
+        }
+        if (cleanedText.match(/EUR/i) && !cleanedText.match(/GBP/i) && !cleanedText.match(/USD/i)) {
+            this.data.currency = 'EUR';
+            console.log('Extracted currency (code): EUR');
+            return;
+        }
+
+        // Check for HUF only if no other currency is found (and only if it appears in a currency context)
+        if (cleanedText.match(/HUF|forint/i) &&
+            !cleanedText.match(/EUR|USD|GBP|€|\$|£/i)) {
             this.data.currency = 'HUF';
-            console.log('Extracted currency (symbol): HUF');
-            return;
-        }
-
-        // Check in totals
-        const totalMatch = this.text.match(/TOTAL\s*DUE\s*[:.]?\s*([€$£])/i);
-        if (totalMatch) {
-            const symbol = totalMatch[1];
-            if (symbol === '€') this.data.currency = 'EUR';
-            else if (symbol === '$') this.data.currency = 'USD';
-            else if (symbol === '£') this.data.currency = 'GBP';
-            console.log('Extracted currency from TOTAL DUE:', this.data.currency);
-            return;
-        }
-
-        // Check in NET TOTAL
-        const netMatch = this.text.match(/NET\s*TOTAL\s*[:.]?\s*([€$£])/i);
-        if (netMatch) {
-            const symbol = netMatch[1];
-            if (symbol === '€') this.data.currency = 'EUR';
-            else if (symbol === '$') this.data.currency = 'USD';
-            else if (symbol === '£') this.data.currency = 'GBP';
-            console.log('Extracted currency from NET TOTAL:', this.data.currency);
-            return;
-        }
-
-        // Check in item prices
-        const itemMatch = this.text.match(/(?:€|\$|£|Ft)/);
-        if (itemMatch) {
-            const symbol = itemMatch[0];
-            if (symbol === '€') this.data.currency = 'EUR';
-            else if (symbol === '$') this.data.currency = 'USD';
-            else if (symbol === '£') this.data.currency = 'GBP';
-            else if (symbol === 'Ft') this.data.currency = 'HUF';
-            console.log('Extracted currency from items:', this.data.currency);
+            console.log('Extracted currency (code): HUF');
             return;
         }
 
@@ -324,10 +336,11 @@ class InvoiceParser {
         const items = [];
         const text = this.text;
 
-        // Get currency symbol for pattern matching
-        const currencySymbol = this.getCurrencySymbol();
-        console.log('Using currency symbol for item extraction:', currencySymbol);
+        // Get currency pattern for regex matching
+        const currencyPattern = this.getCurrencySymbol();
+        console.log('Using currency pattern for item extraction:', currencyPattern);
 
+        // Find the table header
         const headerIndex = text.indexOf('DESCRIPTION QUANTITY NET UNIT PRICE NET LINE TOTAL VAT GROSS LINE TOTAL');
         let tableText = text;
 
@@ -337,79 +350,93 @@ class InvoiceParser {
             console.log('Found header, extracting items from after header');
         }
 
-        // Dynamic pattern based on currency
-        const itemPattern = new RegExp(`(\\d+)\\s+([A-Za-z][A-Za-z0-9\\s&\\-()]+?)\\s+(\\d+)\\s+db\\s+${currencySymbol}([\\d,\\.]+)\\s+${currencySymbol}([\\d,\\.]+)\\s+ÁTHK\\s+${currencySymbol}([\\d,\\.]+)`, 'gi');
+        // Look for the item pattern directly in the table text
+        // This pattern matches: number, name, quantity, price, net total, VAT label, gross total
+        const itemRegex = new RegExp(
+            `(\\d+)\\s+([A-Za-z][A-Za-z0-9\\s&\\-()]+?)\\s+(\\d+)\\s+db\\s+${currencyPattern}\\s*([\\d,\\.]+)\\s+${currencyPattern}\\s*([\\d,\\.]+)\\s+ÁTHK\\s+${currencyPattern}\\s*([\\d,\\.]+)`,
+            'i'
+        );
 
-        const matches = [...tableText.matchAll(itemPattern)];
-        console.log(`Found ${matches.length} item matches`);
+        // Try to find all matches
+        let match;
+        let searchText = tableText;
+        let foundItems = 0;
 
-        for (const match of matches) {
-            const sno = parseInt(match[1]);
-            const name = match[2].trim();
-            const quantity = parseInt(match[3]);
-            const price = parseFloat(match[4].replace(/,/g, ''));
-            const netTotal = parseFloat(match[5].replace(/,/g, ''));
+        // Use a while loop to find all matches (using exec with lastIndex)
+        const regex = new RegExp(itemRegex.source, 'gi');
 
-            const isValidName = name &&
-                !name.match(/^DESCRIPTION|^QUANTITY|^NET\s*UNIT|^NET\s*LINE|^VAT|^GROSS|^TOTAL|^SUBTOTAL|^ITEM|^NO\./i) &&
-                !name.includes('DESCRIPTION') &&
-                !name.includes('QUANTITY') &&
-                !name.includes('NET UNIT') &&
-                !name.includes('NET LINE') &&
-                !name.includes('GROSS LINE');
+        while ((match = regex.exec(searchText)) !== null) {
+            try {
+                const sno = parseInt(match[1]);
+                const name = match[2].trim();
+                const quantity = parseInt(match[3]);
+                const price = parseFloat(match[4].replace(/,/g, ''));
+                const netTotal = parseFloat(match[5].replace(/,/g, ''));
 
-            if (isValidName && quantity > 0 && price > 0) {
-                items.push({
-                    sno: sno,
-                    name: name.replace(/&amp;/g, '&'),
-                    quantity: quantity,
-                    price: price,
-                    total: netTotal || (quantity * price)
-                });
-                console.log('✅ Added item:', items[items.length - 1]);
-            } else {
-                console.log('⏭️ Skipped item (invalid name):', { sno, name, quantity, price });
+                // Validate the item
+                const isValidName = name &&
+                    !name.match(/^DESCRIPTION|^QUANTITY|^NET\s*UNIT|^NET\s*LINE|^VAT|^GROSS|^TOTAL|^SUBTOTAL|^ITEM|^NO\./i) &&
+                    !name.includes('DESCRIPTION') &&
+                    !name.includes('QUANTITY') &&
+                    !name.includes('NET UNIT') &&
+                    !name.includes('NET LINE') &&
+                    !name.includes('GROSS LINE') &&
+                    name.length > 2;
+
+                if (isValidName && quantity > 0 && price > 0) {
+                    items.push({
+                        sno: sno,
+                        name: name.replace(/&amp;/g, '&'),
+                        quantity: quantity,
+                        price: price,
+                        total: netTotal || (quantity * price)
+                    });
+                    foundItems++;
+                    console.log('✅ Added item:', items[items.length - 1]);
+                } else {
+                    console.log('⏭️ Skipped invalid item:', { sno, name, quantity, price });
+                }
+            } catch (e) {
+                console.log('Error parsing match:', e);
             }
         }
 
+        // If no items found with the full pattern, try a simpler pattern
         if (items.length === 0) {
-            console.log('Trying line-by-line extraction...');
-            const lines = this.text.split('\n');
-            let inTable = false;
+            console.log('Trying simpler pattern...');
+            const simpleRegex = new RegExp(
+                `(\\d+)\\s+([A-Za-z][A-Za-z0-9\\s&\\-()]+?)\\s+(\\d+)\\s+db\\s+${currencyPattern}\\s*([\\d,\\.]+)`,
+                'gi'
+            );
 
-            for (const line of lines) {
-                if (line.match(/DESCRIPTION\s+QUANTITY\s+NET\s+UNIT\s+PRICE\s+NET\s+LINE\s+TOTAL\s+VAT\s+GROSS\s+LINE\s+TOTAL/i)) {
-                    inTable = true;
-                    continue;
-                }
+            while ((match = simpleRegex.exec(searchText)) !== null) {
+                try {
+                    const sno = parseInt(match[1]);
+                    const name = match[2].trim();
+                    const quantity = parseInt(match[3]);
+                    const price = parseFloat(match[4].replace(/,/g, ''));
 
-                if (!inTable) continue;
+                    const isValidName = name &&
+                        !name.match(/^DESCRIPTION|^QUANTITY|^NET\s*UNIT|^NET\s*LINE|^VAT|^GROSS|^TOTAL|^SUBTOTAL|^ITEM|^NO\./i) &&
+                        !name.includes('DESCRIPTION') &&
+                        !name.includes('QUANTITY') &&
+                        !name.includes('NET UNIT') &&
+                        !name.includes('NET LINE') &&
+                        !name.includes('GROSS LINE') &&
+                        name.length > 2;
 
-                if (line.match(/NET\s*TOTAL|TOTAL\s*DUE|ÁTHK\s*VAT|Exchange\s*rate|COMMENT|Invoice|Page/i)) {
-                    continue;
-                }
-
-                if (line.match(/\d+\s+db/) && line.includes('ÁTHK')) {
-                    const match = line.match(itemPattern);
-                    if (match) {
-                        const sno = parseInt(match[1]);
-                        const name = match[2].trim();
-                        const quantity = parseInt(match[3]);
-                        const price = parseFloat(match[4].replace(/,/g, ''));
-                        const total = parseFloat(match[5].replace(/,/g, ''));
-
-                        if (name && quantity > 0 && price > 0 &&
-                            !name.match(/DESCRIPTION|QUANTITY|NET\s*UNIT|NET\s*LINE|VAT|GROSS|TOTAL|SUBTOTAL|ITEM|NO\./i)) {
-                            items.push({
-                                sno: sno,
-                                name: name.replace(/&amp;/g, '&'),
-                                quantity: quantity,
-                                price: price,
-                                total: total
-                            });
-                            console.log('✅ Added item from line:', items[items.length - 1]);
-                        }
+                    if (isValidName && quantity > 0 && price > 0) {
+                        items.push({
+                            sno: sno,
+                            name: name.replace(/&amp;/g, '&'),
+                            quantity: quantity,
+                            price: price,
+                            total: quantity * price
+                        });
+                        console.log('✅ Added item (simple):', items[items.length - 1]);
                     }
+                } catch (e) {
+                    console.log('Error parsing simple match:', e);
                 }
             }
         }
@@ -417,17 +444,16 @@ class InvoiceParser {
         console.log(`Total found ${items.length} items:`, items);
         return items;
     }
-
-    // Helper method to get currency symbol for pattern matching
+    // Helper method to get currency pattern for regex matching (both symbol and code)
     getCurrencySymbol() {
         const currency = this.data.currency || 'EUR';
-        const symbols = {
-            'EUR': '€',
-            'USD': '\\$', // Escaped for regex
-            'GBP': '£',
-            'HUF': 'Ft'
+        const patterns = {
+            'EUR': '(?:€|EUR)',
+            'USD': '(?:\\$|USD)',
+            'GBP': '(?:£|GBP)',
+            'HUF': '(?:Ft|HUF)'
         };
-        return symbols[currency] || '€';
+        return patterns[currency] || '(?:€|EUR)';
     }
 
     extractItemsWithCoordinates() {
@@ -448,6 +474,101 @@ class InvoiceParser {
 
     extractCustomerInfo() {
         console.log('Extracting customer info...');
+
+        // Use coordinates to find customer info (more reliable)
+        if (this.pageData && this.pageData.length > 0) {
+            const page = this.pageData[0];
+            const pageItems = page.items;
+            const pageWidth = page.width;
+
+            // Find items on the right side (customer section)
+            // The customer section is typically on the right side of the invoice
+            const customerItems = pageItems.filter(item => {
+                // Customer info is usually on the right side (x > pageWidth * 0.45)
+                // and below the seller section (y > 50)
+                return item.x > pageWidth * 0.45 && item.y > 50 && item.y < 250;
+            });
+
+            console.log('Customer items found:', customerItems.map(i => ({ text: i.text, x: i.x, y: i.y })));
+
+            if (customerItems.length > 0) {
+                // Group by Y coordinate to get lines
+                const lines = this.groupByY(customerItems);
+                console.log('Customer lines from coordinates:', lines);
+
+                // Parse customer info from lines
+                let companyName = '';
+                let addressLines = [];
+                let vatNumber = '';
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+
+                    // Look for VAT ID
+                    const vatMatch = trimmed.match(/VAT\s*ID:?\s*([A-Za-z0-9\-\.]+)/i);
+                    if (vatMatch) {
+                        vatNumber = vatMatch[1].trim();
+                        // Remove VAT from the line for further processing
+                        const cleanedLine = trimmed.replace(/VAT\s*ID:?\s*[A-Za-z0-9\-\.]+/i, '').trim();
+                        if (cleanedLine) {
+                            addressLines.push(cleanedLine);
+                        }
+                        continue;
+                    }
+
+                    // Skip empty lines or lines with just "BUYER"
+                    if (!trimmed || trimmed === 'BUYER') continue;
+
+                    // Skip lines that are clearly not customer info
+                    if (trimmed.match(/SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|DESCRIPTION|QUANTITY|NET UNIT|GROSS LINE|ÁTHK|COMMENT|Invoice|Page/i)) {
+                        continue;
+                    }
+
+                    // If we haven't found a company name yet and this looks like a company name
+                    if (!companyName && trimmed.match(/[A-Za-z]+\s+[A-Za-z]+/) && trimmed.length > 3) {
+                        // Check if it's a company (has Ltd, GmbH, AG, etc. or is not a number)
+                        if (trimmed.match(/Ltd|Limited|GmbH|AG|Kft|LLC|Inc|Corp|S\.A\.|SRL/i) || !trimmed.match(/^\d+/)) {
+                            companyName = trimmed;
+                            continue;
+                        }
+                    }
+
+                    // If we have a company name, remaining lines are address
+                    if (companyName) {
+                        addressLines.push(trimmed);
+                    } else {
+                        // Try to detect if this could be the company name
+                        if (!trimmed.match(/^\d+/) && trimmed.length > 3) {
+                            companyName = trimmed;
+                        } else {
+                            addressLines.push(trimmed);
+                        }
+                    }
+                }
+
+                // Set the customer data
+                if (companyName) {
+                    this.data.customerName = companyName;
+                }
+                if (addressLines.length > 0) {
+                    this.data.customerAddress = addressLines.join('\n');
+                }
+                if (vatNumber) {
+                    this.data.customerVat = vatNumber;
+                }
+
+                console.log('Extracted customer info:', {
+                    name: this.data.customerName,
+                    address: this.data.customerAddress,
+                    vat: this.data.customerVat
+                });
+
+                return;
+            }
+        }
+
+        // Fallback: If coordinates didn't work, try the text-based approach
+        console.log('Falling back to text-based customer extraction...');
         let customerSection = this.findCustomerSection();
         if (customerSection) {
             this.parseCustomerSection(customerSection);
@@ -456,6 +577,119 @@ class InvoiceParser {
             this.identifyCustomerFromText();
         }
         this.cleanCustomerData();
+    }
+
+    // Keep findCustomerSection as a fallback
+    findCustomerSection() {
+        const markers = [
+            /BUYER\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i,
+            /CUSTOMER\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i,
+            /BILL\s*TO\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i,
+            /CLIENT\s*([\s\S]*?)(?:SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|€|\$|£|Ft)/i
+        ];
+        for (const pattern of markers) {
+            const match = this.text.match(pattern);
+            if (match) {
+                const section = match[1].trim();
+                console.log('Found customer section (fallback):', section);
+                return section;
+            }
+        }
+        return null;
+    }
+
+    parseCustomerSection(section) {
+        console.log('Parsing customer section (fallback)...');
+        let vatMatch = section.match(/VAT\s*ID:?\s*([A-Za-z0-9\-\.]+)/i);
+        if (vatMatch) {
+            this.data.customerVat = vatMatch[1].trim();
+            section = section.replace(/VAT\s*ID:?\s*[A-Za-z0-9\-\.]+/i, '').trim();
+        }
+
+        // Split into lines and try to identify company name and address
+        const lines = section.split('\n').filter(line => line.trim());
+        let nameFound = false;
+        let addressLines = [];
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            // Skip lines that are clearly not customer info
+            if (trimmed.match(/SELLER|ISSUE|FULFILLMENT|DUE|PAYMENT|TOTAL|DESCRIPTION|QUANTITY|NET UNIT|GROSS LINE|ÁTHK|COMMENT|Invoice|Page/i)) {
+                continue;
+            }
+
+            // If no name found yet, try to find company name
+            if (!nameFound) {
+                // Look for company indicators
+                if (trimmed.match(/Ltd|Limited|GmbH|AG|Kft|LLC|Inc|Corp|S\.A\.|SRL/i) ||
+                    (trimmed.match(/[A-Za-z]+\s+[A-Za-z]+/) && !trimmed.match(/^\d+/))) {
+                    this.data.customerName = trimmed;
+                    nameFound = true;
+                    continue;
+                }
+            }
+
+            // If we have a name, remaining lines are address
+            if (nameFound) {
+                addressLines.push(trimmed);
+            }
+        }
+
+        if (addressLines.length > 0) {
+            this.data.customerAddress = addressLines.join('\n');
+        }
+
+        // If no name found, try to extract from the first line
+        if (!nameFound && lines.length > 0) {
+            const firstLine = lines[0].trim();
+            if (firstLine && !firstLine.match(/VAT|ID|:/i)) {
+                this.data.customerName = firstLine;
+                if (lines.length > 1) {
+                    this.data.customerAddress = lines.slice(1).join('\n');
+                }
+            }
+        }
+
+        console.log('Parsed customer (fallback):', {
+            name: this.data.customerName,
+            address: this.data.customerAddress,
+            vat: this.data.customerVat
+        });
+    }
+
+    // Keep identifyCustomerFromText as a fallback
+    identifyCustomerFromText() {
+        console.log('Identifying customer from text (fallback)...');
+        const lines = this.lines;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.match(/(?:GmbH|AG|Ltd|LLC|Inc|Corp|S\.A\.|SRL|Kft\.|Limited)/i) &&
+                !line.match(/All Things Studio|Király|32950997|HU32950997/)) {
+                this.data.customerName = line;
+                console.log('Identified customer name (fallback):', this.data.customerName);
+                const addressLines = [];
+                for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+                    const nextLine = lines[j].trim();
+                    if (nextLine.match(/VAT|EMAIL|PHONE|TEL|FAX|IBAN|SWIFT|BIC/i)) {
+                        const vatMatch = nextLine.match(/VAT\s*[:.]?\s*([A-Za-z0-9\-\.]+)/i);
+                        if (vatMatch) {
+                            this.data.customerVat = vatMatch[1].trim();
+                        }
+                        break;
+                    }
+                    if (nextLine && !nextLine.match(/All Things Studio|Király|32950997|HU32950997/)) {
+                        addressLines.push(nextLine);
+                    }
+                }
+                if (addressLines.length > 0) {
+                    this.data.customerAddress = addressLines.join('\n');
+                    console.log('Identified customer address (fallback):', this.data.customerAddress);
+                }
+                break;
+            }
+        }
     }
 
     cleanCustomerData() {
@@ -674,12 +908,12 @@ class InvoiceParser {
     }
 
     extractTotals() {
-        const currencySymbol = this.getCurrencySymbol();
+        const currencyPattern = this.getCurrencySymbol();
 
         const netPatterns = [
-            new RegExp(`NET\\s*TOTAL\\s*[:.]?\\s*(?:${currencySymbol})?([\\d,\\.]+)`, 'i'),
-            /Subtotal\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i,
-            /Sub\s*Total\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i
+            new RegExp(`NET\\s*TOTAL\\s*[:.]?\\s*${currencyPattern}\\s*([\\d,\\.]+)`, 'i'),
+            /Subtotal\s*[:.]?\s*(?:€|\$|£|Ft|GBP|USD|EUR|HUF)\s*([\d,\.]+)/i,
+            /Sub\s*Total\s*[:.]?\s*(?:€|\$|£|Ft|GBP|USD|EUR|HUF)\s*([\d,\.]+)/i
         ];
         const netMatch = this.findPattern(netPatterns);
         if (netMatch) {
@@ -689,9 +923,9 @@ class InvoiceParser {
         }
 
         const vatPatterns = [
-            new RegExp(`ÁTHK\\s*VAT\\s*[:.]?\\s*(?:${currencySymbol})?([\\d,\\.]+)`, 'i'),
-            /VAT\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i,
-            /Tax\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i
+            new RegExp(`ÁTHK\\s*VAT\\s*[:.]?\\s*${currencyPattern}\\s*([\\d,\\.]+)`, 'i'),
+            /VAT\s*[:.]?\s*(?:€|\$|£|Ft|GBP|USD|EUR|HUF)\s*([\d,\.]+)/i,
+            /Tax\s*[:.]?\s*(?:€|\$|£|Ft|GBP|USD|EUR|HUF)\s*([\d,\.]+)/i
         ];
         const vatMatch = this.findPattern(vatPatterns);
         if (vatMatch) {
@@ -699,9 +933,9 @@ class InvoiceParser {
         }
 
         const grossPatterns = [
-            new RegExp(`TOTAL\\s*DUE\\s*[:.]?\\s*(?:${currencySymbol})?([\\d,\\.]+)`, 'i'),
-            /GRAND\s*TOTAL\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i,
-            /Total\s*\(incl\.\s*VAT\)\s*[:.]?\s*(?:€|\$|£|Ft)?([\d,\.]+)/i
+            new RegExp(`TOTAL\\s*DUE\\s*[:.]?\\s*${currencyPattern}\\s*([\\d,\\.]+)`, 'i'),
+            /GRAND\s*TOTAL\s*[:.]?\s*(?:€|\$|£|Ft|GBP|USD|EUR|HUF)\s*([\d,\.]+)/i,
+            /Total\s*\(incl\.\s*VAT\)\s*[:.]?\s*(?:€|\$|£|Ft|GBP|USD|EUR|HUF)\s*([\d,\.]+)/i
         ];
         const grossMatch = this.findPattern(grossPatterns);
         if (grossMatch) {
@@ -713,7 +947,6 @@ class InvoiceParser {
             this.data.vatRate = (this.data.vat / this.data.netTotal) * 100;
         }
     }
-
     findPattern(patterns, text = this.text) {
         for (const pattern of patterns) {
             const match = text.match(pattern);

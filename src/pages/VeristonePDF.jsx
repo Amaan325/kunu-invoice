@@ -1094,6 +1094,7 @@ const VeristonePDF = ({ data }) => {
                     </View>
 
                     {/* Comments Section */}
+                    {/* Comments Section */}
                     <View style={styles.commentsSection}>
                         <View style={styles.quoteIcon}>
                             <Image src={commentIcon} style={{ width: 10, height: 10 }} />
@@ -1105,7 +1106,9 @@ const VeristonePDF = ({ data }) => {
 
                         <View style={styles.commentsLine} />
 
-                        <Text style={styles.exchangeRate}>1 EUR = HUF {exchangeRate}</Text>
+                        <Text style={styles.exchangeRate}>
+                            1 {currency} = HUF {exchangeRate}
+                        </Text>
                     </View>
 
                     <Text style={styles.commentsText}>
