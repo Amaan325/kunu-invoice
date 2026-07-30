@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     },
     cardsContainer: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
+        alignItems: 'stretch',
         padding: 0,
         gap: 24,
         width: 412,
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 12,
         gap: 8,
-        width: 194,
+        flex: 1,
         minHeight: 180,
         backgroundColor: '#FFFFFF',
         borderRadius: 8,
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
         padding: 0,
         gap: 6,
-        width: 170,
+        width: '100%',
         minHeight: 160,
     },
     cardHeader: {
@@ -231,8 +231,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 0,
         gap: 8,
-        width: 170,
-        height: 24,
+        width: '100%',
+        minHeight: 24,
     },
     iconBox: {
         flexDirection: 'row',
@@ -244,8 +244,10 @@ const styles = StyleSheet.create({
         backgroundColor: '#131313',
         borderRadius: 36.75,
         overflow: 'hidden',
+        flexShrink: 0,
     },
     cardTitle: {
+        flex: 1,
         fontFamily: 'Merriweather',
         fontWeight: 700,
         fontSize: 8,
@@ -256,7 +258,7 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
         padding: 0,
         gap: 0,
-        width: 170,
+        width: '100%',
     },
     addressText: {
         fontFamily: 'Epilogue',
@@ -265,6 +267,7 @@ const styles = StyleSheet.create({
         color: '#131313',
         lineHeight: 1.2,
         marginBottom: 1,
+        flexShrink: 1,
     },
     line: {
         width: 25,
@@ -278,7 +281,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 0,
         gap: 4,
-        width: 170,
+        width: '100%',
     },
     infoLabel: {
         fontFamily: 'Epilogue',
@@ -286,12 +289,15 @@ const styles = StyleSheet.create({
         fontSize: 6.5,
         color: '#131313',
         opacity: 0.6,
+        flexShrink: 0,
     },
     infoValue: {
         fontFamily: 'Epilogue',
         fontWeight: 400,
         fontSize: 6.5,
         color: '#131313',
+        flex: 1,
+        textAlign: 'right',
     },
     sidebar: {
         flexDirection: 'row',
@@ -862,7 +868,7 @@ const VeristonePDF = ({ data }) => {
                                         <View style={styles.iconBox}>
                                             <Image src={building} style={{ width: 22, height: 22 }} />
                                         </View>
-                                        <Text style={styles.cardTitle}>{customerName || 'Customer'}</Text>
+                                        <Text style={styles.cardTitle}>{customerName || 'C.D.P DigiImpact LTD dgdgsdgsggLTD xdudio 3242 50302 LouraCyprus '}</Text>
                                     </View>
                                     <View style={styles.cardBody}>
                                         <View style={{ gap: 6 }}>
