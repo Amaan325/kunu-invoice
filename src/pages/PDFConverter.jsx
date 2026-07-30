@@ -71,10 +71,11 @@ class InvoiceParser {
         this.extractComment();
         this.extractCurrency();
         this.extractCustomerInfo();
-        this.extractItemsWithCoordinates();
+        this.extractItemsWithPatterns(); // Use the fixed pattern-based extraction
         this.extractTotals();
         this.cleanCustomerData();
         console.log('Debug info:', this.debug);
+        console.log('Final extracted data:', this.data);
         return this.data;
     }
 
@@ -138,6 +139,7 @@ class InvoiceParser {
             return;
         }
 
+        // Check for currency codes
         if (cleanedText.match(/GBP/i) && !cleanedText.match(/EUR/i) && !cleanedText.match(/USD/i)) {
             this.data.currency = 'GBP';
             console.log('Extracted currency (code): GBP');
@@ -323,109 +325,168 @@ class InvoiceParser {
         });
     }
 
+    // FIXED: This is the main method for extracting items
     extractItemsWithPatterns() {
         console.log('Extracting items with patterns...');
         const items = [];
         const text = this.text;
 
-        const currencyPattern = this.getCurrencySymbol();
-        console.log('Using currency pattern for item extraction:', currencyPattern);
+        // Create a flexible currency pattern that matches both symbols and codes
+        const currencyPattern = '(?:€|EUR|\\$|USD|£|GBP|Ft|HUF)';
+        console.log('Using currency pattern:', currencyPattern);
 
-        const headerIndex = text.indexOf('DESCRIPTION QUANTITY NET UNIT PRICE NET LINE TOTAL VAT GROSS LINE TOTAL');
-        let tableText = text;
+        // Try multiple patterns in order of specificity
+        const patterns = [
+            // Pattern 1: Full line with all columns (most specific)
+            new RegExp(
+                `(\\d+)\\s+(.+?)\\s+(\\d+)\\s+db\\s+${currencyPattern}\\s*([\\d,]+(?:\\.\\d{2})?)\\s+${currencyPattern}\\s*([\\d,]+(?:\\.\\d{2})?)\\s+ÁTHK\\s+${currencyPattern}\\s*([\\d,]+(?:\\.\\d{2})?)`,
+                'i'
+            ),
+            // Pattern 2: With NET LINE TOTAL and VAT (no ÁTHK)
+            new RegExp(
+                `(\\d+)\\s+(.+?)\\s+(\\d+)\\s+db\\s+${currencyPattern}\\s*([\\d,]+(?:\\.\\d{2})?)\\s+${currencyPattern}\\s*([\\d,]+(?:\\.\\d{2})?)\\s+VAT\\s+${currencyPattern}\\s*([\\d,]+(?:\\.\\d{2})?)`,
+                'i'
+            ),
+            // Pattern 3: Simple with just price and total
+            new RegExp(
+                `(\\d+)\\s+(.+?)\\s+(\\d+)\\s+db\\s+${currencyPattern}\\s*([\\d,]+(?:\\.\\d{2})?)\\s+${currencyPattern}\\s*([\\d,]+(?:\\.\\d{2})?)`,
+                'i'
+            ),
+            // Pattern 4: Simplest - just number, name, quantity, currency, price
+            new RegExp(
+                `(\\d+)\\s+(.+?)\\s+(\\d+)\\s+db\\s+${currencyPattern}\\s*([\\d,]+(?:\\.\\d{2})?)`,
+                'i'
+            ),
+            // Pattern 5: Without "db" keyword
+            new RegExp(
+                `(\\d+)\\s+(.+?)\\s+(\\d+)\\s+${currencyPattern}\\s*([\\d,]+(?:\\.\\d{2})?)`,
+                'i'
+            )
+        ];
 
-        if (headerIndex !== -1) {
-            const headerEnd = headerIndex + 'DESCRIPTION QUANTITY NET UNIT PRICE NET LINE TOTAL VAT GROSS LINE TOTAL'.length;
-            tableText = text.substring(headerEnd);
-            console.log('Found header, extracting items from after header');
-        }
+        // Try to find and use the table section
+        const headerPatterns = [
+            /DIGITAL\s+ITEM\s+DESCRIPTION.*?QUANTITY.*?NET\s+UNIT\s+PRICE/i,
+            /DESCRIPTION.*?QUANTITY.*?NET\s+UNIT\s+PRICE/i,
+            /ITEM\s+DESCRIPTION.*?QUANTITY.*?PRICE/i
+        ];
 
-        const itemRegex = new RegExp(
-            `(\\d+)\\s+([A-Za-z][A-Za-z0-9\\s&\\-()]+?)\\s+(\\d+)\\s+db\\s+${currencyPattern}\\s*([\\d,\\.]+)\\s+${currencyPattern}\\s*([\\d,\\.]+)\\s+ÁTHK\\s+${currencyPattern}\\s*([\\d,\\.]+)`,
-            'i'
-        );
-
-        let match;
-        let searchText = tableText;
-        let foundItems = 0;
-
-        const regex = new RegExp(itemRegex.source, 'gi');
-
-        while ((match = regex.exec(searchText)) !== null) {
-            try {
-                const sno = parseInt(match[1]);
-                const name = match[2].trim();
-                const quantity = parseInt(match[3]);
-                const price = parseFloat(match[4].replace(/,/g, ''));
-                const netTotal = parseFloat(match[5].replace(/,/g, ''));
-
-                const isValidName = name &&
-                    !name.match(/^DESCRIPTION|^QUANTITY|^NET\s*UNIT|^NET\s*LINE|^VAT|^GROSS|^TOTAL|^SUBTOTAL|^ITEM|^NO\./i) &&
-                    !name.includes('DESCRIPTION') &&
-                    !name.includes('QUANTITY') &&
-                    !name.includes('NET UNIT') &&
-                    !name.includes('NET LINE') &&
-                    !name.includes('GROSS LINE') &&
-                    name.length > 2;
-
-                if (isValidName && quantity > 0 && price > 0) {
-                    items.push({
-                        sno: sno,
-                        name: name.replace(/&amp;/g, '&'),
-                        quantity: quantity,
-                        price: price,
-                        total: netTotal || (quantity * price)
-                    });
-                    foundItems++;
-                    console.log('✅ Added item:', items[items.length - 1]);
-                } else {
-                    console.log('⏭️ Skipped invalid item:', { sno, name, quantity, price });
-                }
-            } catch (e) {
-                console.log('Error parsing match:', e);
+        let searchText = text;
+        for (const headerPattern of headerPatterns) {
+            const headerMatch = text.match(headerPattern);
+            if (headerMatch) {
+                const headerEnd = text.indexOf(headerMatch[0]) + headerMatch[0].length;
+                searchText = text.substring(headerEnd);
+                console.log('Found header, extracting items from after header');
+                break;
             }
         }
 
-        if (items.length === 0) {
-            console.log('Trying simpler pattern...');
-            const simpleRegex = new RegExp(
-                `(\\d+)\\s+([A-Za-z][A-Za-z0-9\\s&\\-()]+?)\\s+(\\d+)\\s+db\\s+${currencyPattern}\\s*([\\d,\\.]+)`,
-                'gi'
-            );
+        // Try each pattern
+        let foundItems = 0;
+        let lastItemNumber = 0;
 
-            while ((match = simpleRegex.exec(searchText)) !== null) {
+        for (const pattern of patterns) {
+            if (foundItems > 0) break; // Stop if we found items
+
+            const regex = new RegExp(pattern.source, 'gi');
+            let match;
+
+            while ((match = regex.exec(searchText)) !== null) {
                 try {
                     const sno = parseInt(match[1]);
                     const name = match[2].trim();
                     const quantity = parseInt(match[3]);
-                    const price = parseFloat(match[4].replace(/,/g, ''));
 
-                    const isValidName = name &&
-                        !name.match(/^DESCRIPTION|^QUANTITY|^NET\s*UNIT|^NET\s*LINE|^VAT|^GROSS|^TOTAL|^SUBTOTAL|^ITEM|^NO\./i) &&
-                        !name.includes('DESCRIPTION') &&
-                        !name.includes('QUANTITY') &&
-                        !name.includes('NET UNIT') &&
-                        !name.includes('NET LINE') &&
-                        !name.includes('GROSS LINE') &&
-                        name.length > 2;
+                    // Find the price (it will be in match[4] or match[5] depending on pattern)
+                    let priceMatch = match[4];
+                    let totalMatch = match[5] || match[4];
 
-                    if (isValidName && quantity > 0 && price > 0) {
+                    // If the currency is in match[4] (for patterns with currency symbol/code), price is in match[5]
+                    if (match[4] && match[4].match(/^(?:€|EUR|\$|USD|£|GBP|Ft|HUF)$/i)) {
+                        priceMatch = match[5];
+                        totalMatch = match[6] || match[5];
+                    }
+
+                    const price = parseFloat(priceMatch.replace(/,/g, ''));
+                    const total = totalMatch ? parseFloat(totalMatch.replace(/,/g, '')) : quantity * price;
+
+                    // Skip if it looks like a header or label
+                    const skipTerms = ['DESCRIPTION', 'QUANTITY', 'NET', 'UNIT', 'PRICE', 'LINE', 'TOTAL', 'ÁTHK', 'VAT', 'GROSS', 'SUBTOTAL', 'GRAND', 'DIGITAL', 'ITEM'];
+                    const isSkipTerm = skipTerms.some(term =>
+                        name.toUpperCase().includes(term) || name.match(new RegExp(`^${term}$`, 'i'))
+                    );
+
+                    // Only add if valid and not a duplicate
+                    if (!isSkipTerm && name.length > 2 && quantity > 0 && price > 0 && sno > lastItemNumber) {
                         items.push({
                             sno: sno,
                             name: name.replace(/&amp;/g, '&'),
                             quantity: quantity,
                             price: price,
-                            total: quantity * price
+                            total: total || quantity * price
                         });
-                        console.log('✅ Added item (simple):', items[items.length - 1]);
+                        foundItems++;
+                        lastItemNumber = sno;
+                        console.log('✅ Added item:', items[items.length - 1]);
                     }
                 } catch (e) {
-                    console.log('Error parsing simple match:', e);
+                    console.log('Error parsing match:', e);
+                }
+            }
+        }
+
+        // If still no items, try line-by-line parsing
+        if (items.length === 0) {
+            console.log('Trying line-by-line extraction...');
+            const lines = searchText.split('\n');
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                // Try to match any item pattern on this line
+                for (const pattern of patterns.slice(3)) { // Use simpler patterns
+                    const match = trimmed.match(pattern);
+                    if (match) {
+                        try {
+                            const sno = parseInt(match[1]);
+                            const name = match[2].trim();
+                            const quantity = parseInt(match[3]);
+
+                            let priceMatch = match[4];
+                            if (match[4] && match[4].match(/^(?:€|EUR|\$|USD|£|GBP|Ft|HUF)$/i)) {
+                                priceMatch = match[5];
+                            }
+
+                            const price = parseFloat(priceMatch.replace(/,/g, ''));
+
+                            const skipTerms = ['DESCRIPTION', 'QUANTITY', 'NET', 'UNIT', 'PRICE', 'LINE', 'TOTAL', 'ÁTHK', 'VAT', 'GROSS', 'SUBTOTAL', 'GRAND', 'DIGITAL', 'ITEM'];
+                            const isSkipTerm = skipTerms.some(term =>
+                                name.toUpperCase().includes(term) || name.match(new RegExp(`^${term}$`, 'i'))
+                            );
+
+                            if (!isSkipTerm && name.length > 2 && quantity > 0 && price > 0) {
+                                items.push({
+                                    sno: sno,
+                                    name: name.replace(/&amp;/g, '&'),
+                                    quantity: quantity,
+                                    price: price,
+                                    total: quantity * price
+                                });
+                                console.log('✅ Added item (line-by-line):', items[items.length - 1]);
+                                break; // Found an item on this line, move to next line
+                            }
+                        } catch (e) {
+                            console.log('Error parsing line:', e);
+                        }
+                    }
                 }
             }
         }
 
         console.log(`Total found ${items.length} items:`, items);
+        this.data.items = items;
         return items;
     }
 
@@ -438,22 +499,6 @@ class InvoiceParser {
             'HUF': '(?:Ft|HUF)'
         };
         return patterns[currency] || '(?:€|EUR)';
-    }
-
-    extractItemsWithCoordinates() {
-        console.log('Extracting items with coordinates...');
-
-        const textItems = this.extractItemsWithPatterns();
-        if (textItems.length > 0) {
-            console.log('Found items via text patterns:', textItems);
-            this.data.items = textItems;
-            return;
-        }
-
-        if (this.data.items.length === 0) {
-            console.log('No items found with any method');
-            this.data.items = [];
-        }
     }
 
     extractCustomerInfo() {
@@ -821,11 +866,32 @@ class InvoiceParser {
         }
     }
 
-    // UNUSED METHODS (kept for compatibility)
+    // Legacy methods kept for compatibility
+    extractItemsWithCoordinates() {
+        console.log('Extracting items with coordinates...');
+        this.extractItemsWithPatterns();
+    }
+
+    extractItemsFromCoordinates() {
+        console.log('Extracting items from coordinates...');
+        return [];
+    }
+
+    findTableStartY(pageItems, keywords) {
+        return null;
+    }
+
+    groupItemsByRow(pageItems, startY = 0, tolerance = 3) {
+        return [];
+    }
+
+    parseRowToItem(rowItems, itemNumber) {
+        return null;
+    }
+
     extractItems() {
-        console.log('Starting item extraction (fallback)...');
-        const items = this.extractItemsWithPatterns();
-        this.data.items = items;
+        console.log('Starting item extraction...');
+        this.extractItemsWithPatterns();
     }
 
     extractTableData() {
@@ -846,14 +912,6 @@ class InvoiceParser {
     }
 
     extractItemFromColumns(columns) {
-        return null;
-    }
-
-    groupItemsByRow(items) {
-        return [];
-    }
-
-    parseRowToItem(row, allItems) {
         return null;
     }
 
@@ -929,28 +987,84 @@ const PDFConverter = ({ onDataExtracted, onClose }) => {
                 const viewport = page.getViewport({ scale: 1 });
                 const textContent = await page.getTextContent();
 
-                const pageItems = textContent.items.map(item => ({
-                    text: item.str,
-                    x: item.transform[4],
-                    y: viewport.height - item.transform[5],
-                    width: item.width,
-                    height: item.height,
-                    font: item.fontName,
-                    fontSize: item.fontSize
-                }));
+                // Group items by Y position (rows)
+                const rows = new Map();
+                const tolerance = 3; // pixels tolerance for same row
 
-                const pageText = textContent.items
-                    .map(item => item.str)
-                    .join(' ')
-                    .replace(/\s+/g, ' ')
-                    .trim();
+                textContent.items.forEach(item => {
+                    const y = Math.round(viewport.height - item.transform[5]);
+                    let foundRow = null;
+
+                    // Find existing row within tolerance
+                    for (const [rowY, _] of rows) {
+                        if (Math.abs(rowY - y) <= tolerance) {
+                            foundRow = rowY;
+                            break;
+                        }
+                    }
+
+                    if (foundRow !== null) {
+                        rows.get(foundRow).push({
+                            text: item.str,
+                            x: item.transform[4],
+                            y: foundRow,
+                            width: item.width,
+                            height: item.height,
+                            font: item.fontName,
+                            fontSize: item.fontSize
+                        });
+                    } else {
+                        rows.set(y, [{
+                            text: item.str,
+                            x: item.transform[4],
+                            y: y,
+                            width: item.width,
+                            height: item.height,
+                            font: item.fontName,
+                            fontSize: item.fontSize
+                        }]);
+                    }
+                });
+
+                // Sort rows by Y position
+                const sortedRows = Array.from(rows.entries()).sort((a, b) => a[0] - b[0]);
+
+                // Build page text preserving table structure
+                let pageText = '';
+                const allItems = [];
+
+                sortedRows.forEach(([y, rowItems]) => {
+                    // Sort items in row by X position
+                    rowItems.sort((a, b) => a.x - b.x);
+
+                    let rowText = '';
+                    let lastX = 0;
+
+                    rowItems.forEach(item => {
+                        // Add spacing to preserve column alignment
+                        const gap = item.x - lastX;
+                        if (lastX > 0 && gap > 15) {
+                            rowText += '    '; // Tab spacing for columns
+                        } else if (lastX > 0) {
+                            rowText += ' ';
+                        }
+                        rowText += item.text;
+                        lastX = item.x + item.width;
+
+                        allItems.push(item);
+                    });
+
+                    if (rowText.trim()) {
+                        pageText += rowText + '\n';
+                    }
+                });
 
                 fullText += pageText + '\n';
                 pageData.push({
                     pageNumber: i,
                     width: viewport.width,
                     height: viewport.height,
-                    items: pageItems
+                    items: allItems
                 });
             }
 
