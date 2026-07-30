@@ -34,7 +34,7 @@ Font.register({
     ]
 });
 
-// Seller information for each currency
+// Seller information for each currency - ALL fields included
 const SELLER_INFO = {
     GBP: {
         name: 'All Things Studio Kft.',
@@ -42,10 +42,10 @@ const SELLER_INFO = {
         vat: '32950997-1-42',
         registration: '01-09-451087',
         euVat: 'HU32950997',
+        bankAccount: '85887078',
         iban: 'GB05TRWI23080185887078',
         bank: 'Wise',
-        bic: 'TRWIGB2LXXX',
-        bankAccount: '85887078'
+        bic: 'TRWIGB2LXXX'
     },
     EUR: {
         name: 'All Things Studio Kft.',
@@ -53,10 +53,10 @@ const SELLER_INFO = {
         vat: '32950997-1-42',
         registration: '01-09-451087',
         euVat: 'HU32950997',
-        iban: 'BE78967859820086',
+        bankAccount: 'BE78967859820086',
+        // iban: 'BE78967859820086',
         bank: 'Wise',
-        bic: 'TRWIBEB1XXX',
-        bankAccount: 'BE78967859820086'
+        bic: 'TRWIBEB1XXX'
     },
     USD: {
         name: 'All Things Studio Kft.',
@@ -64,10 +64,10 @@ const SELLER_INFO = {
         vat: '32950997-2-42',
         registration: '01-09-451087',
         euVat: 'HU32950997',
-        iban: '',
+        bankAccount: '026073150',
+        // iban: '',
         bank: 'Wise',
-        bic: '',
-        bankAccount: '026073150'
+        // bic: ''
     }
 };
 
@@ -151,14 +151,6 @@ const dummyData = {
     vatRate: 0,
     exchangeRate: 355.84,
     currency: 'EUR',
-    sellerName: 'All Things Studio Kft.',
-    sellerAddress: 'Király utca 93.2.20.\n1077 Budapest\nHungary',
-    sellerVat: '32950997-1-42',
-    sellerRegistration: '01-09-451087',
-    sellerEuVat: 'HU32950997',
-    sellerIban: 'BE78967859820086',
-    sellerBank: 'Wise',
-    sellerBic: 'TRWIBEB1XXX',
 };
 
 const styles = StyleSheet.create({
@@ -788,6 +780,7 @@ const VeristonePDF = ({ data }) => {
     const sellerVat = sellerInfo.vat;
     const sellerRegistration = sellerInfo.registration;
     const sellerEuVat = sellerInfo.euVat;
+    const sellerBankAccount = sellerInfo.bankAccount;
     const sellerIban = sellerInfo.iban;
     const sellerBank = sellerInfo.bank;
     const sellerBic = sellerInfo.bic;
@@ -870,7 +863,7 @@ const VeristonePDF = ({ data }) => {
                     {/* Address Section */}
                     <View style={styles.addressSection}>
                         <View style={styles.cardsContainer}>
-                            {/* Sender Card - Uses currency-specific seller info */}
+                            {/* Sender Card - Uses currency-specific seller info with ALL fields */}
                             <View style={styles.card}>
                                 <View style={styles.cardContent}>
                                     <View style={styles.cardHeader}>
@@ -902,15 +895,24 @@ const VeristonePDF = ({ data }) => {
                                         </View>
                                         <View style={styles.line} />
                                         <View style={{ gap: 6 }}>
+                                            {/* BANK ACCOUNT NO - Always show */}
                                             <View style={styles.infoRow}>
-                                                <Text style={styles.infoLabel}>IBAN:</Text>
-                                                <Text style={styles.infoValue}>{sellerIban || 'N/A'}</Text>
+                                                <Text style={styles.infoLabel}>BANK ACCOUNT NO.:</Text>
+                                                <Text style={styles.infoValue}>{sellerBankAccount}</Text>
                                             </View>
+                                            {/* IBAN - Show if available */}
+                                            {sellerIban && sellerIban !== '' && (
+                                                <View style={styles.infoRow}>
+                                                    <Text style={styles.infoLabel}>IBAN:</Text>
+                                                    <Text style={styles.infoValue}>{sellerIban}</Text>
+                                                </View>
+                                            )}
                                             <View style={styles.infoRow}>
                                                 <Text style={styles.infoLabel}>BANK:</Text>
                                                 <Text style={styles.infoValue}>{sellerBank}</Text>
                                             </View>
-                                            {sellerBic && (
+                                            {/* BIC/SWIFT - Show if available */}
+                                            {sellerBic && sellerBic !== '' && (
                                                 <View style={styles.infoRow}>
                                                     <Text style={styles.infoLabel}>SWIFT/BIC:</Text>
                                                     <Text style={styles.infoValue}>{sellerBic}</Text>
