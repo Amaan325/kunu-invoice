@@ -34,6 +34,42 @@ Font.register({
     ]
 });
 
+// Seller information for each currency
+const SELLER_INFO = {
+    GBP: {
+        name: 'All Things Studio Kft.',
+        address: 'Király utca 93. 2. em. 20. ajtó\n1077 Budapest\nHungary',
+        vat: '32950997-1-42',
+        registration: '01-09-451087',
+        euVat: 'HU32950997',
+        iban: 'GB05TRWI23080185887078',
+        bank: 'Wise',
+        bic: 'TRWIGB2LXXX',
+        bankAccount: '85887078'
+    },
+    EUR: {
+        name: 'All Things Studio Kft.',
+        address: 'Király utca 93. 2. em. 20. ajtó\n1077 Budapest\nHungary',
+        vat: '32950997-1-42',
+        registration: '01-09-451087',
+        euVat: 'HU32950997',
+        iban: 'BE78967859820086',
+        bank: 'Wise',
+        bic: 'TRWIBEB1XXX',
+        bankAccount: 'BE78967859820086'
+    },
+    USD: {
+        name: 'All Things Studio Kft.',
+        address: 'Király utca 93. 2. 20.\n1077 Budapest\nHungary',
+        vat: '32950997-2-42',
+        registration: '01-09-451087',
+        euVat: 'HU32950997',
+        iban: '',
+        bank: 'Wise',
+        bic: '',
+        bankAccount: '026073150'
+    }
+};
 
 // Helper functions with currency support
 // Currency configuration
@@ -41,13 +77,12 @@ const CURRENCY_CONFIG = {
     EUR: { symbol: '€', locale: 'de-DE', code: 'EUR' },
     USD: { symbol: '$', locale: 'en-US', code: 'USD' },
     GBP: { symbol: '£', locale: 'en-GB', code: 'GBP' },
-    HUF: { symbol: 'HUF ', locale: 'hu-HU', code: 'HUF' }, // Changed symbol to "HUF "
+    HUF: { symbol: 'HUF ', locale: 'hu-HU', code: 'HUF' },
 };
 
 const formatCurrency = (amount, currencyCode = 'EUR') => {
     const config = CURRENCY_CONFIG[currencyCode] || CURRENCY_CONFIG.EUR;
 
-    // Always use 2 decimal places for ALL currencies
     const options = {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
@@ -55,9 +90,8 @@ const formatCurrency = (amount, currencyCode = 'EUR') => {
 
     const formatted = new Intl.NumberFormat(config.locale, options).format(amount);
 
-    // For HUF, use "HUF " as the prefix
     if (currencyCode === 'HUF') {
-        return `${config.symbol}${formatted}`; // "HUF 0.00"
+        return `${config.symbol}${formatted}`;
     }
 
     return `${config.symbol}${formatted}`;
@@ -116,7 +150,7 @@ const dummyData = {
     grossTotal: 1040.00,
     vatRate: 0,
     exchangeRate: 355.84,
-    currency: 'EUR', // Added currency field
+    currency: 'EUR',
     sellerName: 'All Things Studio Kft.',
     sellerAddress: 'Király utca 93.2.20.\n1077 Budapest\nHungary',
     sellerVat: '32950997-1-42',
@@ -715,31 +749,29 @@ const styles = StyleSheet.create({
 });
 
 const VeristonePDF = ({ data }) => {
-    // Log the incoming data for debugging
     console.log('VeristonePDF received data:', data);
 
-    // If no data is provided, use dummy data for preview
     const actualData = data || dummyData;
 
     console.log('Actual data being used:', actualData);
     console.log('Items in actual data:', actualData.items);
 
-    // Extract fields from actual data
     const orderNo = actualData.documentNumber || '';
     const issueDate = actualData.issueDate || actualData.date || '';
     const dueDate = actualData.dueDate || '';
     const fulfillmentDate = actualData.fulfillmentDate || issueDate;
 
-    // Extract currency (default to EUR)
     const currency = actualData.currency || 'EUR';
     const currencySymbol = getCurrencySymbol(currency);
+
+    // Get seller info based on currency
+    const sellerInfo = SELLER_INFO[currency] || SELLER_INFO.EUR;
 
     // Customer info
     const customerName = actualData.customerName || '';
     const customerVat = actualData.customerVat || '';
     const customerAddress = actualData.customerAddress || '';
 
-    // Items and totals - USE ACTUAL DATA
     const items = actualData.items || [];
     console.log('Items array length:', items.length);
     console.log('Items:', items);
@@ -750,25 +782,22 @@ const VeristonePDF = ({ data }) => {
     const vatRate = actualData.vatRate || 0;
     const exchangeRate = actualData.exchangeRate || 355.84;
 
-    // Seller info
-    const sellerName = actualData.sellerName || 'All Things Studio Kft.';
-    const sellerAddress = actualData.sellerAddress || 'Király utca 93.2.20.\n1077 Budapest\nHungary';
-    const sellerVat = actualData.sellerVat || '32950997-1-42';
-    const sellerRegistration = actualData.sellerRegistration || '01-09-451087';
-    const sellerEuVat = actualData.sellerEuVat || 'HU32950997';
-    const sellerIban = actualData.sellerIban || 'BE78967859820086';
-    const sellerBank = actualData.sellerBank || 'Wise';
-    const sellerBic = actualData.sellerBic || 'TRWIBEB1XXX';
+    // Use seller info from SELLER_INFO based on currency
+    const sellerName = sellerInfo.name;
+    const sellerAddress = sellerInfo.address;
+    const sellerVat = sellerInfo.vat;
+    const sellerRegistration = sellerInfo.registration;
+    const sellerEuVat = sellerInfo.euVat;
+    const sellerIban = sellerInfo.iban;
+    const sellerBank = sellerInfo.bank;
+    const sellerBic = sellerInfo.bic;
 
-    // Format dates
     const formattedDate = formatDate(issueDate);
     const formattedDueDate = formatDate(dueDate);
     const formattedFulfillmentDate = formatDate(fulfillmentDate);
 
-    // Use actual items
     const displayItems = items && items.length > 0 ? items : [];
 
-    // If no items and no data, show a message
     if (displayItems.length === 0 && !data) {
         return (
             <Document>
@@ -783,7 +812,6 @@ const VeristonePDF = ({ data }) => {
         );
     }
 
-    // If there are no items but we have data, show a message
     if (displayItems.length === 0 && data) {
         return (
             <Document>
@@ -801,7 +829,6 @@ const VeristonePDF = ({ data }) => {
         );
     }
 
-    // Calculate totals from actual items
     const calculatedNetTotal = displayItems.reduce((sum, item) => sum + ((item.quantity || 0) * (item.price || 0)), 0);
     const finalNetTotal = netTotal || calculatedNetTotal;
     const finalGrossTotal = grossTotal || finalNetTotal;
@@ -809,7 +836,6 @@ const VeristonePDF = ({ data }) => {
 
     const vatAmountHUF = finalVatAmount * exchangeRate;
 
-    // Format with currency
     const formattedTotal = formatCurrency(finalGrossTotal, currency);
     const sidebarTotalFontSize = getDynamicFontSize(formattedTotal, 13, 6);
     const netTotalFontSize = getDynamicFontSize(formatCurrency(finalNetTotal, currency), 7, 6);
@@ -844,7 +870,7 @@ const VeristonePDF = ({ data }) => {
                     {/* Address Section */}
                     <View style={styles.addressSection}>
                         <View style={styles.cardsContainer}>
-                            {/* Sender Card - All Things Studio Kft. */}
+                            {/* Sender Card - Uses currency-specific seller info */}
                             <View style={styles.card}>
                                 <View style={styles.cardContent}>
                                     <View style={styles.cardHeader}>
@@ -878,22 +904,24 @@ const VeristonePDF = ({ data }) => {
                                         <View style={{ gap: 6 }}>
                                             <View style={styles.infoRow}>
                                                 <Text style={styles.infoLabel}>IBAN:</Text>
-                                                <Text style={styles.infoValue}>{sellerIban}</Text>
+                                                <Text style={styles.infoValue}>{sellerIban || 'N/A'}</Text>
                                             </View>
                                             <View style={styles.infoRow}>
                                                 <Text style={styles.infoLabel}>BANK:</Text>
                                                 <Text style={styles.infoValue}>{sellerBank}</Text>
                                             </View>
-                                            <View style={styles.infoRow}>
-                                                <Text style={styles.infoLabel}>SWIFT/BIC:</Text>
-                                                <Text style={styles.infoValue}>{sellerBic}</Text>
-                                            </View>
+                                            {sellerBic && (
+                                                <View style={styles.infoRow}>
+                                                    <Text style={styles.infoLabel}>SWIFT/BIC:</Text>
+                                                    <Text style={styles.infoValue}>{sellerBic}</Text>
+                                                </View>
+                                            )}
                                         </View>
                                     </View>
                                 </View>
                             </View>
 
-                            {/* Buyer Card - Display data as-is */}
+                            {/* Buyer Card */}
                             <View style={styles.cardVeristone}>
                                 <View style={styles.cardContent}>
                                     <View style={styles.cardHeader}>
@@ -960,7 +988,7 @@ const VeristonePDF = ({ data }) => {
                         <View style={styles.table}>
                             <View style={{ ...styles.tableCol, width: colWidths.number }}>
                                 <View style={[styles.tableHead, styles.tableHeadFirst]}>
-                                    {/* <Text style={styles.tableHeadText}>#</Text> */}
+                                    {/* Empty header for number column */}
                                 </View>
                                 {displayItems.map((_, i) => (
                                     <View key={i} style={styles.tableCell}>
@@ -1093,7 +1121,6 @@ const VeristonePDF = ({ data }) => {
                         </View>
                     </View>
 
-                    {/* Comments Section */}
                     {/* Comments Section */}
                     <View style={styles.commentsSection}>
                         <View style={styles.quoteIcon}>
