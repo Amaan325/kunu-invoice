@@ -833,15 +833,99 @@ const VeristonePDF = ({ data }) => {
     const vatValueFontSize = getDynamicFontSize(formatCurrency(finalVatAmount, currency), 7, 6);
     const grandTotalFontSize = getDynamicFontSize(formatCurrency(finalGrossTotal, currency), 14, 8);
 
-    const colWidths = {
-        number: 35,
-        description: 162,
-        qty: 41,
-        netUnitPrice: 83,
-        netLineTotal: 83,
-        vat: 60,
-        grossLineTotal: 83,
+    // DYNAMIC COLUMN WIDTH CALCULATION
+    // Base widths for number and VAT columns (these don't change much)
+    const baseNumberWidth = 30;
+    const baseVatWidth = 55;
+    const baseQtyWidth = 55;
+    const totalTableWidth = 547;
+    const paddingBuffer = 20; // Buffer for padding and borders
+
+    // Calculate maximum content lengths
+    let maxDescriptionLength = 0;
+    let maxQtyLength = 0;
+    let maxNetUnitPriceLength = 0;
+    let maxNetLineTotalLength = 0;
+    let maxGrossLineTotalLength = 0;
+
+    displayItems.forEach(item => {
+        const name = item.name || '';
+        const qty = `${item.quantity || 0} db`;
+        const price = formatCurrency(item.price || 0, currency);
+        const lineTotal = formatCurrency((item.quantity || 0) * (item.price || 0), currency);
+        const grossLineTotal = formatCurrency((item.quantity || 0) * (item.price || 0) * (1 + (vatRate || 0) / 100), currency);
+
+        maxDescriptionLength = Math.max(maxDescriptionLength, name.length);
+        maxQtyLength = Math.max(maxQtyLength, qty.length);
+        maxNetUnitPriceLength = Math.max(maxNetUnitPriceLength, price.length);
+        maxNetLineTotalLength = Math.max(maxNetLineTotalLength, lineTotal.length);
+        maxGrossLineTotalLength = Math.max(maxGrossLineTotalLength, grossLineTotal.length);
+    });
+
+    // Also check header lengths
+    const headers = {
+        description: 'Description'.length,
+        qty: 'QTY'.length,
+        netUnitPrice: 'Net Unit Price'.length,
+        netLineTotal: 'Net Line Total'.length,
+        grossLineTotal: 'Gross Line Total'.length,
     };
+
+    maxDescriptionLength = Math.max(maxDescriptionLength, headers.description);
+    maxQtyLength = Math.max(maxQtyLength, headers.qty);
+    maxNetUnitPriceLength = Math.max(maxNetUnitPriceLength, headers.netUnitPrice);
+    maxNetLineTotalLength = Math.max(maxNetLineTotalLength, headers.netLineTotal);
+    maxGrossLineTotalLength = Math.max(maxGrossLineTotalLength, headers.grossLineTotal);
+
+    // Calculate character width (approximate: 6.5px per character for the font size)
+    const charWidth = 6.5;
+    const minColumnWidth = 40;
+    const maxColumnWidth = 200;
+
+    // Calculate ideal widths based on content
+    let idealDescriptionWidth = Math.max(minColumnWidth, Math.min(maxColumnWidth, maxDescriptionLength * charWidth + 20));
+    let idealQtyWidth = Math.max(minColumnWidth, Math.min(maxColumnWidth, maxQtyLength * charWidth + 20));
+    let idealNetUnitPriceWidth = Math.max(minColumnWidth, Math.min(maxColumnWidth, maxNetUnitPriceLength * charWidth + 20));
+    let idealNetLineTotalWidth = Math.max(minColumnWidth, Math.min(maxColumnWidth, maxNetLineTotalLength * charWidth + 20));
+    let idealGrossLineTotalWidth = Math.max(minColumnWidth, Math.min(maxColumnWidth, maxGrossLineTotalLength * charWidth + 20));
+
+    // Calculate remaining width for description (it gets the most flexibility)
+    const fixedWidths = baseNumberWidth + baseVatWidth + idealQtyWidth + idealNetUnitPriceWidth + idealNetLineTotalWidth + idealGrossLineTotalWidth;
+    const remainingWidth = totalTableWidth - fixedWidths - paddingBuffer;
+
+    // Give remaining width to description, but cap it
+    let finalDescriptionWidth = Math.max(idealDescriptionWidth, remainingWidth);
+    finalDescriptionWidth = Math.min(finalDescriptionWidth, maxColumnWidth);
+
+    // If description is too small, distribute extra space
+    if (finalDescriptionWidth < 80) {
+        // Not enough space, try to reduce other columns
+        const extraSpace = 80 - finalDescriptionWidth;
+        // Reduce qty, netUnitPrice, netLineTotal, grossLineTotal proportionally
+        const reducibleColumns = [idealQtyWidth, idealNetUnitPriceWidth, idealNetLineTotalWidth, idealGrossLineTotalWidth];
+        const totalReducible = reducibleColumns.reduce((a, b) => a + b, 0);
+        if (totalReducible > 0) {
+            const reductionFactor = (totalReducible - extraSpace) / totalReducible;
+            idealQtyWidth = Math.max(minColumnWidth, idealQtyWidth * reductionFactor);
+            idealNetUnitPriceWidth = Math.max(minColumnWidth, idealNetUnitPriceWidth * reductionFactor);
+            idealNetLineTotalWidth = Math.max(minColumnWidth, idealNetLineTotalWidth * reductionFactor);
+            idealGrossLineTotalWidth = Math.max(minColumnWidth, idealGrossLineTotalWidth * reductionFactor);
+            finalDescriptionWidth = 80;
+        }
+    }
+
+    // Final column widths
+    const colWidths = {
+        number: baseNumberWidth,
+        description: finalDescriptionWidth,
+        qty: idealQtyWidth,
+        netUnitPrice: idealNetUnitPriceWidth,
+        netLineTotal: idealNetLineTotalWidth,
+        vat: baseVatWidth,
+        grossLineTotal: idealGrossLineTotalWidth,
+    };
+
+    console.log('Dynamic column widths:', colWidths);
 
     return (
         <Document>
@@ -999,7 +1083,7 @@ const VeristonePDF = ({ data }) => {
                                 </View>
                                 {displayItems.map((_, i) => (
                                     <View key={i} style={styles.tableCell}>
-                                        <Text style={styles.tableCellText}>{i + 1}.</Text>
+                                        <Text style={styles.tableCellText}>{i + 1}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -1016,12 +1100,14 @@ const VeristonePDF = ({ data }) => {
                             </View>
 
                             <View style={{ ...styles.tableCol, width: colWidths.qty }}>
-                                <View style={styles.tableHead}>
-                                    <Text style={styles.tableHeadText}>QTY</Text>
+                                <View style={[styles.tableHead, styles.tableHeadStart]}>
+                                    <Text style={[styles.tableHeadText, styles.tableHeadTextStart]}>QTY</Text>
                                 </View>
                                 {displayItems.map((item, i) => (
-                                    <View key={i} style={styles.tableCell}>
-                                        <Text style={styles.tableCellText}>{item.quantity || 0} db</Text>
+                                    <View key={i} style={[styles.tableCell, styles.tableCellStart]}>
+                                        <Text style={[styles.tableCellText, styles.tableCellTextStart]}>
+                                            {item.quantity || 0} db
+                                        </Text>
                                     </View>
                                 ))}
                             </View>
