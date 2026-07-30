@@ -38,23 +38,21 @@ Font.register({
 const SELLER_INFO = {
     GBP: {
         name: 'All Things Studio Kft.',
-        address: 'Király utca 93. 2. em. 20. ajtó\n1077 Budapest\nHungary',
-        vat: '32950997-1-42',
+        address: 'Király utca 93. 2. 20.\n1077 Budapest\nHungary',
+        vat: '32950997-2-42',
         registration: '01-09-451087',
         euVat: 'HU32950997',
         bankAccount: '85887078',
-        iban: 'GB05TRWI23080185887078',
-        bank: 'Wise',
-        bic: 'TRWIGB2LXXX'
+        sortCode: '23-08-01',
+        bank: 'WISE'
     },
     EUR: {
         name: 'All Things Studio Kft.',
-        address: 'Király utca 93. 2. em. 20. ajtó\n1077 Budapest\nHungary',
+        address: 'Király utca 93. 2. 20.\n1077 Budapest\nHungary',
         vat: '32950997-1-42',
         registration: '01-09-451087',
         euVat: 'HU32950997',
         bankAccount: 'BE78967859820086',
-        // iban: 'BE78967859820086',
         bank: 'Wise',
         bic: 'TRWIBEB1XXX'
     },
@@ -65,9 +63,7 @@ const SELLER_INFO = {
         registration: '01-09-451087',
         euVat: 'HU32950997',
         bankAccount: '026073150',
-        // iban: '',
-        bank: 'Wise',
-        // bic: ''
+        bank: 'Wise'
     }
 };
 
@@ -782,9 +778,10 @@ const VeristonePDF = ({ data }) => {
     const sellerRegistration = sellerInfo.registration;
     const sellerEuVat = sellerInfo.euVat;
     const sellerBankAccount = sellerInfo.bankAccount;
-    const sellerIban = sellerInfo.iban;
+    const sellerIban = sellerInfo.iban || '';
     const sellerBank = sellerInfo.bank;
-    const sellerBic = sellerInfo.bic;
+    const sellerBic = sellerInfo.bic || '';
+    const sellerSortCode = sellerInfo.sortCode || '';
 
     const formattedDate = formatDate(issueDate);
     const formattedDueDate = formatDate(dueDate);
@@ -901,6 +898,13 @@ const VeristonePDF = ({ data }) => {
                                                 <Text style={styles.infoLabel}>BANK ACCOUNT NO.:</Text>
                                                 <Text style={styles.infoValue}>{sellerBankAccount}</Text>
                                             </View>
+                                            {/* SORT CODE - Show if available (GBP only) */}
+                                            {sellerSortCode && sellerSortCode !== '' && (
+                                                <View style={styles.infoRow}>
+                                                    <Text style={styles.infoLabel}>SORT CODE:</Text>
+                                                    <Text style={styles.infoValue}>{sellerSortCode}</Text>
+                                                </View>
+                                            )}
                                             {/* IBAN - Show if available */}
                                             {sellerIban && sellerIban !== '' && (
                                                 <View style={styles.infoRow}>
